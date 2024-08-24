@@ -2,6 +2,8 @@ CC = /opt/aarch64-none-elf/bin/aarch64-none-elf-gcc
 AS = /opt/aarch64-none-elf/bin/aarch64-none-elf-as
 AR = /opt/aarch64-none-elf/bin/aarch64-none-elf-ar
 CFLAGS = -nostdinc -nostdlib -ffreestanding
+CFLAGS += -Wall -Wextra -pedantic -Werror -Wfatal-errors
+CFLAGS += -march=armv8-a+crc+crypto -mtune=cortex-a72.cortex-a53
 CFLAGS += -fno-asynchronous-unwind-tables -fcf-protection=none -fno-stack-protector -fno-stack-clash-protection
 CFLAGS += -ffunction-sections
 
