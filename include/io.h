@@ -2,6 +2,7 @@
 #define IO_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 typedef int fd_t;
 typedef unsigned short umode_t;

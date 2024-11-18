@@ -2,6 +2,7 @@
    Derived from musl-libc src/string/strlen.c
  */
 
+#include <stddef.h>
 #include <stdint.h>
 #include <limits.h>
 

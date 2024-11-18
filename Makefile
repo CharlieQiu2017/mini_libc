@@ -1,19 +1,22 @@
 CC = /opt/aarch64-none-elf/bin/aarch64-none-elf-gcc
 AS = /opt/aarch64-none-elf/bin/aarch64-none-elf-as
 AR = /opt/aarch64-none-elf/bin/aarch64-none-elf-ar
-CFLAGS = -nostdinc -nostdlib -ffreestanding
-CFLAGS += -Wall -Wextra -pedantic -Werror -Wfatal-errors
-CFLAGS += -march=armv8-a+crc+crypto -mtune=cortex-a72.cortex-a53
-CFLAGS += -fno-asynchronous-unwind-tables -fcf-protection=none -fno-stack-protector -fno-stack-clash-protection
-CFLAGS += -ffunction-sections
+FREEFLAGS = -nostdlib -ffreestanding
+WARNFLAGS = -Wall -Wextra -pedantic -Werror -Wfatal-errors
+ARCHFLAGS = -march=armv8-a+crc+crypto -mtune=cortex-a72.cortex-a53
+PROTFLAGS = -fomit-frame-pointer -fno-asynchronous-unwind-tables -fcf-protection=none -fno-stack-protector -fno-stack-clash-protection
+GCFLAGS = -ffunction-sections
 
 ifeq ($(optimize),1)
-CFLAGS+=-Os
+OPTFLAGS = -Os -fweb
 else
-CFLAGS+=-O0
+OPTFLAGS = -O0
 endif
 
-CFLAGS += -I ./include
+INCFLAGS += -I ./include
+EXTFLAGS = 
+
+CFLAGS = $(FREEFLAGS) $(WARNFLAGS) $(ARCHFLAGS) $(PROTFLAGS) $(GCFLAGS) $(OPTFLAGS) $(INCFLAGS) $(EXTFLAGS)
 
 LIBC_SRCS = $(shell find src -regex '.*\.c')
 LIBC_OBJS = $(patsubst src/%.c,obj/%.o,$(LIBC_SRCS))
