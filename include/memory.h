@@ -15,13 +15,36 @@
 #define MAP_ANONYMOUS 0x20
 #define MAP_FIXED_NOREPLACE 0x100000
 
-void * mmap (void *addr, size_t len, int prot, int flags, fd_t fd, ssize_t offset);
+void * mmap (void * addr, size_t len, int prot, int flags, fd_t fd, ssize_t offset);
 
-int munmap (void *addr, size_t len);
+int munmap (void * addr, size_t len);
 
-void * get_pages (uint64_t num);
+/* We implement three layers of memory allocator: mmap-alloc, buddy-alloc, and small-alloc.
+   Each layer implements two functions:
+   void * X_alloc (size_t len, void ** ctx_ptr);
+   void X_free (void * ptr, void * ctx, size_t len);
 
-void free_pages (void *ptr, uint64_t num);
+   X_alloc attempts to allocate a block of memory of given length.
+   For each layer, the len argument must belong to a predetermined set.
+   For mmap-alloc it is any multiple of 4096 smaller than 1 << 48.
+   For buddy-alloc it is 4096, 8192, ..., 262144.
+   For small-alloc it is 32, 64, 96, ..., 512, 1024, 2048.
+   It returns a pointer to the beginning of the allocated region, as well as a context pointer.
+
+   Since the buddy allocator only provides 7 sizes, we provide buddy_alloc_0, ..., buddy_alloc_7 as specialized versions of buddy_alloc.
+   buddy_alloc_N allocates (1 << N) pages of memory.
+   We also provide buddy_free_N.
+
+   X_free returns the allocated region.
+   ctx must be the returned context pointer.
+   len must be the length argument used to call alloc.
+   ptr can be any address that is within the allocated region.
+   For mmap_alloc, the context pointer and returned pointer are identical.
+ */
+
+void * mmap_alloc (size_t len, void ** ctx_ptr);
+
+void mmap_free (__attribute__((unused)) void * ptr, void * ctx, size_t len);
 
 struct buddy_state {
   uint8_t in_use;
@@ -44,33 +67,33 @@ struct buddy_state {
   void *chunk;
 };
 
-void allocate_block6 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx);
+void * buddy_alloc_6 (void ** ctx_ptr);
 
-void allocate_block5 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx);
+void * buddy_alloc_5 (void ** ctx_ptr);
 
-void allocate_block4 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx);
+void * buddy_alloc_4 (void ** ctx_ptr);
 
-void allocate_block3 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx);
+void * buddy_alloc_3 (void ** ctx_ptr);
 
-void allocate_block2 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx);
+void * buddy_alloc_2 (void ** ctx_ptr);
 
-void allocate_block1 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx);
+void * buddy_alloc_1 (void ** ctx_ptr);
 
-void allocate_block0 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx);
+void * buddy_alloc_0 (void ** ctx_ptr);
 
-void free_block6 (struct buddy_state *st, uint32_t block_idx);
+void buddy_free_6 (void * ptr, void * ctx);
 
-void free_block5 (struct buddy_state *st, uint32_t block_idx);
+void buddy_free_5 (void * ptr, void * ctx);
 
-void free_block4 (struct buddy_state *st, uint32_t block_idx);
+void buddy_free_4 (void * ptr, void * ctx);
 
-void free_block3 (struct buddy_state *st, uint32_t block_idx);
+void buddy_free_3 (void * ptr, void * ctx);
 
-void free_block2 (struct buddy_state *st, uint32_t block_idx);
+void buddy_free_2 (void * ptr, void * ctx);
 
-void free_block1 (struct buddy_state *st, uint32_t block_idx);
+void buddy_free_1 (void * ptr, void * ctx);
 
-void free_block0 (struct buddy_state *st, uint32_t block_idx);
+void buddy_free_0 (void * ptr, void * ctx);
 
 struct class_area {
   struct buddy_state *buddy_area;
@@ -80,14 +103,17 @@ struct class_area {
   char area[];
 };
 
-#define CLASS_AREA_HEADER_SIZE 288
+#define CLASS_AREA_HEADER_SIZE (offsetof (struct class_area, area))
+_Static_assert (CLASS_AREA_HEADER_SIZE % 16 == 0, "CLASS_AREA_HEADER_SIZE is not multiple of 16");
 
-void allocate_slot (uint64_t size, struct class_area **out_class_area, uint32_t *out_idx);
+void * small_alloc (size_t len, void ** ctx_ptr);
 
-void free_slot (uint64_t size, struct class_area *area, uint32_t idx);
+void small_free (void * ptr, void * ctx, size_t len);
 
-void * malloc (uint64_t size);
+void * malloc (size_t len);
 
-void free (void *ptr);
+void free (void * ptr);
+
+void clear_free_set (void);
 
 #endif

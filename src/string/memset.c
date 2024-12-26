@@ -5,8 +5,8 @@
 #include <string.h>
 #include <stdint.h>
 
-void * memset (void *dest, uint32_t c, uint64_t n) {
-  unsigned char *s = dest;
+void * memset (void * dest, uint32_t c, uint64_t n) {
+  unsigned char * s = dest;
   uint64_t k;
 
   /* Fill head and tail with minimal branching. Each

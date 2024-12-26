@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <memory.h>
+#include <tls.h>
+#include <config.h>
 
 /* The buddy allocator manages memory chunks of size 512KiB (128 pages).
    It allocates memory blocks of sizes 1, 2, 4, ..., 64 pages.
@@ -14,6 +16,7 @@
    Hence 0 <= idx < 128.
 
    If all blocks within a chunk are freed, the chunk is returned to the OS.
+   We also keep a small number of chunks always available, to avoid frequent syscalls.
 
    The state of each chunk is recorded using a `struct buddy_state`.
    This struct contains the following fields:
@@ -40,6 +43,8 @@
  */
 
 #define BUDDY_RECORDS_PER_AREA ((65536 - 16) / sizeof (struct buddy_state))
+#define BUDDY_BLOCK_IDX(st, block, order) ((((uintptr_t) (block)) - ((uintptr_t) (st)->chunk)) >> (12 + order))
+#define BUDDY_IDX_BLOCK(st, idx, order) ((void *) (((uintptr_t) (st)->chunk) + ((idx) << (12 + order))))
 
 struct buddy_state_area {
   struct buddy_state_area *prev_area;
@@ -47,15 +52,20 @@ struct buddy_state_area {
   struct buddy_state state_records[BUDDY_RECORDS_PER_AREA];
 };
 
-static struct buddy_state_area *area_list_head;
-static struct buddy_state *empty_list_head;
-static struct buddy_state *avail6_list_head;
-static struct buddy_state *avail5_list_head;
-static struct buddy_state *avail4_list_head;
-static struct buddy_state *avail3_list_head;
-static struct buddy_state *avail2_list_head;
-static struct buddy_state *avail1_list_head;
-static struct buddy_state *avail0_list_head;
+struct buddy_tls_t {
+  struct buddy_state_area *area_list_head;
+  struct buddy_state *empty_list_head;
+  struct buddy_state *avail6_list_head;
+  struct buddy_state *avail5_list_head;
+  struct buddy_state *avail4_list_head;
+  struct buddy_state *avail3_list_head;
+  struct buddy_state *avail2_list_head;
+  struct buddy_state *avail1_list_head;
+  struct buddy_state *avail0_list_head;
+  uint32_t chunk_num;
+};
+
+static struct buddy_tls_t buddy_tls[LIBC_MAX_THREAD_NUM];
 
 /* allocate_buddy_state_area
    Allocate new struct buddy_state_area.
@@ -64,12 +74,15 @@ static struct buddy_state *avail0_list_head;
  */
 
 static void allocate_buddy_state_area (void) {
-  struct buddy_state_area *new_area = get_pages (16);
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+
+  void * mmap_ctx_ptr;
+  struct buddy_state_area * new_area = mmap_alloc (16 << 12, &mmap_ctx_ptr);
   if (new_area == NULL) return;
 
-  new_area->next_area = area_list_head;
-  if (area_list_head != NULL) area_list_head->prev_area = new_area;
-  area_list_head = new_area;
+  new_area->next_area = tls->area_list_head;
+  if (tls->area_list_head != NULL) tls->area_list_head->prev_area = new_area;
+  tls->area_list_head = new_area;
 
   for (uint32_t i = 1; i < BUDDY_RECORDS_PER_AREA - 1; ++i) {
     new_area->state_records[i].next_empty_state = &(new_area->state_records[i + 1]);
@@ -77,9 +90,9 @@ static void allocate_buddy_state_area (void) {
   }
   new_area->state_records[0].next_empty_state = &(new_area->state_records[1]);
   new_area->state_records[BUDDY_RECORDS_PER_AREA - 1].prev_empty_state = &(new_area->state_records[BUDDY_RECORDS_PER_AREA - 2]);
-  new_area->state_records[BUDDY_RECORDS_PER_AREA - 1].next_empty_state = empty_list_head;
-  if (empty_list_head != NULL) empty_list_head->prev_empty_state = &(new_area->state_records[BUDDY_RECORDS_PER_AREA - 1]);
-  empty_list_head = &(new_area->state_records[0]);
+  new_area->state_records[BUDDY_RECORDS_PER_AREA - 1].next_empty_state = tls->empty_list_head;
+  if (tls->empty_list_head != NULL) tls->empty_list_head->prev_empty_state = &(new_area->state_records[BUDDY_RECORDS_PER_AREA - 1]);
+  tls->empty_list_head = &(new_area->state_records[0]);
 }
 
 /* allocate_buddy_state
@@ -88,12 +101,14 @@ static void allocate_buddy_state_area (void) {
  */
 
 static struct buddy_state * allocate_buddy_state (void) {
-  if (empty_list_head == NULL) allocate_buddy_state_area ();
-  if (empty_list_head == NULL) return NULL;
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
 
-  struct buddy_state *new_state = empty_list_head;
-  empty_list_head = new_state->next_empty_state;
-  if (empty_list_head != NULL) empty_list_head->prev_empty_state = NULL;
+  if (tls->empty_list_head == NULL) allocate_buddy_state_area ();
+  if (tls->empty_list_head == NULL) return NULL;
+
+  struct buddy_state * new_state = tls->empty_list_head;
+  tls->empty_list_head = new_state->next_empty_state;
+  if (tls->empty_list_head != NULL) tls->empty_list_head->prev_empty_state = NULL;
   new_state->next_empty_state = NULL;
   new_state->in_use = 1;
 
@@ -107,10 +122,12 @@ static struct buddy_state * allocate_buddy_state (void) {
  */
 
 static void free_buddy_state (struct buddy_state *ptr) {
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+
   memset (ptr, 0, sizeof (struct buddy_state));
-  ptr->next_empty_state = empty_list_head;
-  if (empty_list_head != NULL) empty_list_head->prev_empty_state = ptr;
-  empty_list_head = ptr;
+  ptr->next_empty_state = tls->empty_list_head;
+  if (tls->empty_list_head != NULL) tls->empty_list_head->prev_empty_state = ptr;
+  tls->empty_list_head = ptr;
 }
 
 /* allocate_chunk_and_block6
@@ -121,10 +138,13 @@ static void free_buddy_state (struct buddy_state *ptr) {
  */
 
 static struct buddy_state * allocate_chunk_and_block6 (void) {
-  struct buddy_state *new_state = allocate_buddy_state ();
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+
+  struct buddy_state * new_state = allocate_buddy_state ();
   if (new_state == NULL) return NULL;
 
-  new_state->chunk = get_pages (128);
+  void * mmap_ctx_ptr;
+  new_state->chunk = mmap_alloc (128 << 12, &mmap_ctx_ptr);
   if (new_state->chunk == NULL) {
     free_buddy_state (new_state);
     return NULL;
@@ -132,25 +152,28 @@ static struct buddy_state * allocate_chunk_and_block6 (void) {
 
   new_state->bitmap6 = 2;
   new_state->avail_num[6] = 1;
-  new_state->next_avail_idx6 = avail6_list_head;
-  if (avail6_list_head != NULL) avail6_list_head->prev_avail_idx6 = new_state;
-  avail6_list_head = new_state;
+  new_state->next_avail_idx6 = tls->avail6_list_head;
+  if (tls->avail6_list_head != NULL) tls->avail6_list_head->prev_avail_idx6 = new_state;
+  tls->avail6_list_head = new_state;
+  tls->chunk_num++;
 
   return new_state;
 }
 
-/* allocate_block6
+/* buddy_alloc_6
    Allocate a new block of order 6.
-   Outputs both buddy_state ptr and block idx.
+   Outputs both buddy_state ptr and block ptr.
    out_buddy_state is set to NULL upon failure.
  */
 
-void allocate_block6 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx) {
-  struct buddy_state *st;
+void * buddy_alloc_6 (void ** ctx_ptr) {
+  struct buddy_state ** out_buddy_state = (struct buddy_state **) ctx_ptr;
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st;
 
-  if (avail6_list_head != NULL) {
+  if (tls->avail6_list_head != NULL) {
 
-    st = avail6_list_head;
+    st = tls->avail6_list_head;
     uint32_t idx = __builtin_ctz (st->bitmap6);
     st->bitmap6 &= ~ (1ull << idx);
     st->avail_num[6]--;
@@ -158,33 +181,34 @@ void allocate_block6 (struct buddy_state **out_buddy_state, uint32_t *out_block_
     if (st->avail_num[6] == 0) {
       if (st->next_avail_idx6 != NULL) st->next_avail_idx6->prev_avail_idx6 = NULL;
       st->next_avail_idx6 = NULL;
-      avail6_list_head = st->next_avail_idx6;
+      tls->avail6_list_head = st->next_avail_idx6;
     }
 
     *out_buddy_state = st;
-    *out_block_idx = idx;
+    return BUDDY_IDX_BLOCK (st, idx, 6);
 
   } else {
 
     st = allocate_chunk_and_block6 ();
     if (st != NULL) {
       *out_buddy_state = st;
-      *out_block_idx = 0;
-      return;
+      return st->chunk;
     } else {
       *out_buddy_state = NULL;
-      return;
+      return NULL;
     }
 
   }
 }
 
-void allocate_block5 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx) {
-  struct buddy_state *st;
+void * buddy_alloc_5 (void ** ctx_ptr) {
+  struct buddy_state ** out_buddy_state = (struct buddy_state **) ctx_ptr;
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st;
 
-  if (avail5_list_head != NULL) {
+  if (tls->avail5_list_head != NULL) {
 
-    st = avail5_list_head;
+    st = tls->avail5_list_head;
     uint32_t idx = __builtin_ctz (st->bitmap5);
     st->bitmap5 &= ~ (1ull << idx);
     st->avail_num[5]--;
@@ -192,41 +216,42 @@ void allocate_block5 (struct buddy_state **out_buddy_state, uint32_t *out_block_
     if (st->avail_num[5] == 0) {
       if (st->next_avail_idx5 != NULL) st->next_avail_idx5->prev_avail_idx5 = NULL;
       st->next_avail_idx5 = NULL;
-      avail5_list_head = st->next_avail_idx5;
+      tls->avail5_list_head = st->next_avail_idx5;
     }
 
     *out_buddy_state = st;
-    *out_block_idx = idx;
+    return BUDDY_IDX_BLOCK (st, idx, 5);
 
   } else {
 
-    uint32_t idx;
-    allocate_block6 (&st, &idx);
+    void * block = buddy_alloc_6 ((void **) &st);
     if (st != NULL) {
+      uint32_t idx = BUDDY_BLOCK_IDX (st, block, 6);
       st->avail_num[5]++;
       st->bitmap5 |= (1ull << (2 * idx + 1));
       if (st->avail_num[5] == 1) {
-	st->next_avail_idx5 = avail5_list_head;
-	if (avail5_list_head != NULL) avail5_list_head->prev_avail_idx5 = st;
-	avail5_list_head = st;
+	st->next_avail_idx5 = tls->avail5_list_head;
+	if (tls->avail5_list_head != NULL) tls->avail5_list_head->prev_avail_idx5 = st;
+	tls->avail5_list_head = st;
       }
       *out_buddy_state = st;
-      *out_block_idx = 2 * idx;
-      return;
+      return block;
     } else {
       *out_buddy_state = NULL;
-      return;
+      return NULL;
     }
 
   }
 }
 
-void allocate_block4 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx) {
-  struct buddy_state *st;
+void * buddy_alloc_4 (void ** ctx_ptr) {
+  struct buddy_state ** out_buddy_state = (struct buddy_state **) ctx_ptr;
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st;
 
-  if (avail4_list_head != NULL) {
+  if (tls->avail4_list_head != NULL) {
 
-    st = avail4_list_head;
+    st = tls->avail4_list_head;
     uint32_t idx = __builtin_ctz (st->bitmap4);
     st->bitmap4 &= ~ (1ull << idx);
     st->avail_num[4]--;
@@ -234,41 +259,42 @@ void allocate_block4 (struct buddy_state **out_buddy_state, uint32_t *out_block_
     if (st->avail_num[4] == 0) {
       if (st->next_avail_idx4 != NULL) st->next_avail_idx4->prev_avail_idx4 = NULL;
       st->next_avail_idx4 = NULL;
-      avail4_list_head = st->next_avail_idx4;
+      tls->avail4_list_head = st->next_avail_idx4;
     }
 
     *out_buddy_state = st;
-    *out_block_idx = idx;
+    return BUDDY_IDX_BLOCK (st, idx, 4);
 
   } else {
 
-    uint32_t idx;
-    allocate_block5 (&st, &idx);
+    void * block = buddy_alloc_5 ((void **) &st);
+    uint32_t idx = BUDDY_BLOCK_IDX (st, block, 5);
     if (st != NULL) {
       st->avail_num[4]++;
       st->bitmap4 |= (1ull << (2 * idx + 1));
       if (st->avail_num[4] == 1) {
-	st->next_avail_idx4 = avail4_list_head;
-	if (avail4_list_head != NULL) avail4_list_head->prev_avail_idx4 = st;
-	avail4_list_head = st;
+	st->next_avail_idx4 = tls->avail4_list_head;
+	if (tls->avail4_list_head != NULL) tls->avail4_list_head->prev_avail_idx4 = st;
+	tls->avail4_list_head = st;
       }
       *out_buddy_state = st;
-      *out_block_idx = 2 * idx;
-      return;
+      return block;
     } else {
       *out_buddy_state = NULL;
-      return;
+      return NULL;
     }
 
   }
 }
 
-void allocate_block3 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx) {
-  struct buddy_state *st;
+void * buddy_alloc_3 (void ** ctx_ptr) {
+  struct buddy_state ** out_buddy_state = (struct buddy_state **) ctx_ptr;
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st;
 
-  if (avail3_list_head != NULL) {
+  if (tls->avail3_list_head != NULL) {
 
-    st = avail3_list_head;
+    st = tls->avail3_list_head;
     uint32_t idx = __builtin_ctz (st->bitmap3);
     st->bitmap3 &= ~ (1ull << idx);
     st->avail_num[3]--;
@@ -276,41 +302,42 @@ void allocate_block3 (struct buddy_state **out_buddy_state, uint32_t *out_block_
     if (st->avail_num[3] == 0) {
       if (st->next_avail_idx3 != NULL) st->next_avail_idx3->prev_avail_idx3 = NULL;
       st->next_avail_idx3 = NULL;
-      avail3_list_head = st->next_avail_idx3;
+      tls->avail3_list_head = st->next_avail_idx3;
     }
 
     *out_buddy_state = st;
-    *out_block_idx = idx;
+    return BUDDY_IDX_BLOCK (st, idx, 3);
 
   } else {
 
-    uint32_t idx;
-    allocate_block4 (&st, &idx);
+    void * block = buddy_alloc_4 ((void **) &st);
     if (st != NULL) {
+      uint32_t idx = BUDDY_BLOCK_IDX (st, block, 4);
       st->avail_num[3]++;
       st->bitmap3 |= (1ull << (2 * idx + 1));
       if (st->avail_num[3] == 1) {
-	st->next_avail_idx3 = avail3_list_head;
-	if (avail3_list_head != NULL) avail3_list_head->prev_avail_idx3 = st;
-	avail3_list_head = st;
+	st->next_avail_idx3 = tls->avail3_list_head;
+	if (tls->avail3_list_head != NULL) tls->avail3_list_head->prev_avail_idx3 = st;
+	tls->avail3_list_head = st;
       }
       *out_buddy_state = st;
-      *out_block_idx = 2 * idx;
-      return;
+      return block;
     } else {
       *out_buddy_state = NULL;
-      return;
+      return NULL;
     }
 
   }
 }
 
-void allocate_block2 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx) {
-  struct buddy_state *st;
+void * buddy_alloc_2 (void ** ctx_ptr) {
+  struct buddy_state ** out_buddy_state = (struct buddy_state **) ctx_ptr;
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st;
 
-  if (avail2_list_head != NULL) {
+  if (tls->avail2_list_head != NULL) {
 
-    st = avail2_list_head;
+    st = tls->avail2_list_head;
     uint32_t idx = __builtin_ctz (st->bitmap2);
     st->bitmap2 &= ~ (1ull << idx);
     st->avail_num[2]--;
@@ -318,41 +345,42 @@ void allocate_block2 (struct buddy_state **out_buddy_state, uint32_t *out_block_
     if (st->avail_num[2] == 0) {
       if (st->next_avail_idx2 != NULL) st->next_avail_idx2->prev_avail_idx2 = NULL;
       st->next_avail_idx2 = NULL;
-      avail2_list_head = st->next_avail_idx2;
+      tls->avail2_list_head = st->next_avail_idx2;
     }
 
     *out_buddy_state = st;
-    *out_block_idx = idx;
+    return BUDDY_IDX_BLOCK (st, idx, 2);
 
   } else {
 
-    uint32_t idx;
-    allocate_block3 (&st, &idx);
+    void * block = buddy_alloc_3 ((void **) &st);
     if (st != NULL) {
+      uint32_t idx = BUDDY_BLOCK_IDX (st, block, 3);
       st->avail_num[2]++;
       st->bitmap2 |= (1ull << (2 * idx + 1));
       if (st->avail_num[2] == 1) {
-	st->next_avail_idx2 = avail2_list_head;
-	if (avail2_list_head != NULL) avail2_list_head->prev_avail_idx2 = st;
-	avail2_list_head = st;
+	st->next_avail_idx2 = tls->avail2_list_head;
+	if (tls->avail2_list_head != NULL) tls->avail2_list_head->prev_avail_idx2 = st;
+	tls->avail2_list_head = st;
       }
       *out_buddy_state = st;
-      *out_block_idx = 2 * idx;
-      return;
+      return block;
     } else {
       *out_buddy_state = NULL;
-      return;
+      return NULL;
     }
 
   }
 }
 
-void allocate_block1 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx) {
-  struct buddy_state *st;
+void * buddy_alloc_1 (void ** ctx_ptr) {
+  struct buddy_state ** out_buddy_state = (struct buddy_state **) ctx_ptr;
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st;
 
-  if (avail1_list_head != NULL) {
+  if (tls->avail1_list_head != NULL) {
 
-    st = avail1_list_head;
+    st = tls->avail1_list_head;
     uint32_t idx = __builtin_ctzll (st->bitmap1);
     st->bitmap1 &= ~ (1ull << idx);
     st->avail_num[1]--;
@@ -360,41 +388,42 @@ void allocate_block1 (struct buddy_state **out_buddy_state, uint32_t *out_block_
     if (st->avail_num[1] == 0) {
       if (st->next_avail_idx1 != NULL) st->next_avail_idx1->prev_avail_idx1 = NULL;
       st->next_avail_idx1 = NULL;
-      avail1_list_head = st->next_avail_idx1;
+      tls->avail1_list_head = st->next_avail_idx1;
     }
 
     *out_buddy_state = st;
-    *out_block_idx = idx;
+    return BUDDY_IDX_BLOCK (st, idx, 1);
 
   } else {
 
-    uint32_t idx;
-    allocate_block2 (&st, &idx);
+    void * block = buddy_alloc_2 ((void **) &st);
     if (st != NULL) {
+      uint32_t idx = BUDDY_BLOCK_IDX (st, block, 2);
       st->avail_num[1]++;
       st->bitmap1 |= (1ull << (2 * idx + 1));
       if (st->avail_num[1] == 1) {
-	st->next_avail_idx1 = avail1_list_head;
-	if (avail1_list_head != NULL) avail1_list_head->prev_avail_idx1 = st;
-	avail1_list_head = st;
+	st->next_avail_idx1 = tls->avail1_list_head;
+	if (tls->avail1_list_head != NULL) tls->avail1_list_head->prev_avail_idx1 = st;
+	tls->avail1_list_head = st;
       }
       *out_buddy_state = st;
-      *out_block_idx = 2 * idx;
-      return;
+      return block;
     } else {
       *out_buddy_state = NULL;
-      return;
+      return NULL;
     }
 
   }
 }
 
-void allocate_block0 (struct buddy_state **out_buddy_state, uint32_t *out_block_idx) {
-  struct buddy_state *st;
+void * buddy_alloc_0 (void ** ctx_ptr) {
+  struct buddy_state ** out_buddy_state = (struct buddy_state **) ctx_ptr;
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st;
 
-  if (avail0_list_head != NULL) {
+  if (tls->avail0_list_head != NULL) {
 
-    st = avail0_list_head;
+    st = tls->avail0_list_head;
     uint32_t idx;
     if (st->bitmap0[0]) {
       idx = __builtin_ctzll (st->bitmap0[0]);
@@ -410,17 +439,17 @@ void allocate_block0 (struct buddy_state **out_buddy_state, uint32_t *out_block_
     if (st->avail_num[0] == 0) {
       if (st->next_avail_idx0 != NULL) st->next_avail_idx0->prev_avail_idx0 = NULL;
       st->next_avail_idx0 = NULL;
-      avail0_list_head = st->next_avail_idx0;
+      tls->avail0_list_head = st->next_avail_idx0;
     }
 
     *out_buddy_state = st;
-    *out_block_idx = idx;
+    return BUDDY_IDX_BLOCK (st, idx, 0);
 
   } else {
 
-    uint32_t idx;
-    allocate_block1 (&st, &idx);
+    void * block = buddy_alloc_1 ((void **) &st);
     if (st != NULL) {
+      uint32_t idx = BUDDY_BLOCK_IDX (st, block, 1);
       st->avail_num[0]++;
       if (idx < 32) {
 	st->bitmap0[0] |= (1ull << (2 * idx + 1));
@@ -428,42 +457,50 @@ void allocate_block0 (struct buddy_state **out_buddy_state, uint32_t *out_block_
 	st->bitmap0[1] |= (1ull << (2 * (idx - 32) + 1));
       }
       if (st->avail_num[0] == 1) {
-	st->next_avail_idx0 = avail0_list_head;
-	if (avail0_list_head != NULL) avail0_list_head->prev_avail_idx0 = st;
-	avail0_list_head = st;
+	st->next_avail_idx0 = tls->avail0_list_head;
+	if (tls->avail0_list_head != NULL) tls->avail0_list_head->prev_avail_idx0 = st;
+	tls->avail0_list_head = st;
       }
       *out_buddy_state = st;
-      *out_block_idx = 2 * idx;
-      return;
+      return block;
     } else {
       *out_buddy_state = NULL;
-      return;
+      return NULL;
     }
 
   }
 }
 
-void free_block6 (struct buddy_state *st, uint32_t block_idx) {
+void buddy_free_6 (void * ptr, void * ctx) {
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st = (struct buddy_state *) ctx;
+  uint32_t block_idx = BUDDY_BLOCK_IDX (st, ptr, 6);
+
   uint32_t buddy = block_idx ^ 1;
-  if (st->bitmap6 & (1ull << buddy)) {
+  if ((st->bitmap6 & (1ull << buddy)) && tls->chunk_num > LIBC_KEEP_CHUNK_NUM) {
     /* At this point, no smaller blocks should be available */
     if (st->prev_avail_idx6 != NULL) st->prev_avail_idx6->next_avail_idx6 = st->next_avail_idx6;
     if (st->next_avail_idx6 != NULL) st->next_avail_idx6->prev_avail_idx6 = st->prev_avail_idx6;
-    if (avail6_list_head == st) avail6_list_head = st->next_avail_idx6;
-    free_pages (st->chunk, 128);
+    if (tls->avail6_list_head == st) tls->avail6_list_head = st->next_avail_idx6;
+    mmap_free (st->chunk, st->chunk, 128 << 12);
     free_buddy_state (st);
+    tls->chunk_num--;
   } else {
     st->bitmap6 |= (1ull << block_idx);
     st->avail_num[6]++;
     if (st->avail_num[6] == 1) {
-      st->next_avail_idx6 = avail6_list_head;
-      if (avail6_list_head != NULL) avail6_list_head->prev_avail_idx6 = st;
-      avail6_list_head = st;
+      st->next_avail_idx6 = tls->avail6_list_head;
+      if (tls->avail6_list_head != NULL) tls->avail6_list_head->prev_avail_idx6 = st;
+      tls->avail6_list_head = st;
     }
   }
 }
 
-void free_block5 (struct buddy_state *st, uint32_t block_idx) {
+void buddy_free_5 (void * ptr, void * ctx) {
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st = (struct buddy_state *) ctx;
+  uint32_t block_idx = BUDDY_BLOCK_IDX (st, ptr, 5);
+
   uint32_t buddy = block_idx ^ 1;
   if (st->bitmap5 & (1ull << buddy)) {
     st->bitmap5 &= ~ (1ull << buddy);
@@ -471,23 +508,27 @@ void free_block5 (struct buddy_state *st, uint32_t block_idx) {
     if (st->avail_num[5] == 0) {
       if (st->prev_avail_idx5 != NULL) st->prev_avail_idx5->next_avail_idx5 = st->next_avail_idx5;
       if (st->next_avail_idx5 != NULL) st->next_avail_idx5->prev_avail_idx5 = st->prev_avail_idx5;
-      if (avail5_list_head == st) avail5_list_head = st->next_avail_idx5;
+      if (tls->avail5_list_head == st) tls->avail5_list_head = st->next_avail_idx5;
       st->prev_avail_idx5 = NULL;
       st->next_avail_idx5 = NULL;
     }
-    free_block6 (st, block_idx >> 1);
+    buddy_free_6 (BUDDY_IDX_BLOCK (st, block_idx >> 1, 6), st);
   } else {
     st->bitmap5 |= (1ull << block_idx);
     st->avail_num[5]++;
     if (st->avail_num[5] == 1) {
-      st->next_avail_idx5 = avail5_list_head;
-      if (avail5_list_head != NULL) avail5_list_head->prev_avail_idx5 = st;
-      avail5_list_head = st;
+      st->next_avail_idx5 = tls->avail5_list_head;
+      if (tls->avail5_list_head != NULL) tls->avail5_list_head->prev_avail_idx5 = st;
+      tls->avail5_list_head = st;
     }
   }
 }
 
-void free_block4 (struct buddy_state *st, uint32_t block_idx) {
+void buddy_free_4 (void * ptr, void * ctx) {
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st = (struct buddy_state *) ctx;
+  uint32_t block_idx = BUDDY_BLOCK_IDX (st, ptr, 4);
+
   uint32_t buddy = block_idx ^ 1;
   if (st->bitmap4 & (1ull << buddy)) {
     st->bitmap4 &= ~ (1ull << buddy);
@@ -495,23 +536,27 @@ void free_block4 (struct buddy_state *st, uint32_t block_idx) {
     if (st->avail_num[4] == 0) {
       if (st->prev_avail_idx4 != NULL) st->prev_avail_idx4->next_avail_idx4 = st->next_avail_idx4;
       if (st->next_avail_idx4 != NULL) st->next_avail_idx4->prev_avail_idx4 = st->prev_avail_idx4;
-      if (avail4_list_head == st) avail4_list_head = st->next_avail_idx4;
+      if (tls->avail4_list_head == st) tls->avail4_list_head = st->next_avail_idx4;
       st->prev_avail_idx4 = NULL;
       st->next_avail_idx4 = NULL;
     }
-    free_block5 (st, block_idx >> 1);
+    buddy_free_5 (BUDDY_IDX_BLOCK (st, block_idx >> 1, 5), st);
   } else {
     st->bitmap4 |= (1ull << block_idx);
     st->avail_num[4]++;
     if (st->avail_num[4] == 1) {
-      st->next_avail_idx4 = avail4_list_head;
-      if (avail4_list_head != NULL) avail4_list_head->prev_avail_idx4 = st;
-      avail4_list_head = st;
+      st->next_avail_idx4 = tls->avail4_list_head;
+      if (tls->avail4_list_head != NULL) tls->avail4_list_head->prev_avail_idx4 = st;
+      tls->avail4_list_head = st;
     }
   }
 }
 
-void free_block3 (struct buddy_state *st, uint32_t block_idx) {
+void buddy_free_3 (void * ptr, void * ctx) {
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st = (struct buddy_state *) ctx;
+  uint32_t block_idx = BUDDY_BLOCK_IDX (st, ptr, 3);
+
   uint32_t buddy = block_idx ^ 1;
   if (st->bitmap3 & (1ull << buddy)) {
     st->bitmap3 &= ~ (1ull << buddy);
@@ -519,23 +564,27 @@ void free_block3 (struct buddy_state *st, uint32_t block_idx) {
     if (st->avail_num[3] == 0) {
       if (st->prev_avail_idx3 != NULL) st->prev_avail_idx3->next_avail_idx3 = st->next_avail_idx3;
       if (st->next_avail_idx3 != NULL) st->next_avail_idx3->prev_avail_idx3 = st->prev_avail_idx3;
-      if (avail3_list_head == st) avail3_list_head = st->next_avail_idx3;
+      if (tls->avail3_list_head == st) tls->avail3_list_head = st->next_avail_idx3;
       st->prev_avail_idx3 = NULL;
       st->next_avail_idx3 = NULL;
     }
-    free_block4 (st, block_idx >> 1);
+    buddy_free_4 (BUDDY_IDX_BLOCK (st, block_idx >> 1, 4), st);
   } else {
     st->bitmap3 |= (1ull << block_idx);
     st->avail_num[3]++;
     if (st->avail_num[3] == 1) {
-      st->next_avail_idx3 = avail3_list_head;
-      if (avail3_list_head != NULL) avail3_list_head->prev_avail_idx3 = st;
-      avail3_list_head = st;
+      st->next_avail_idx3 = tls->avail3_list_head;
+      if (tls->avail3_list_head != NULL) tls->avail3_list_head->prev_avail_idx3 = st;
+      tls->avail3_list_head = st;
     }
   }
 }
 
-void free_block2 (struct buddy_state *st, uint32_t block_idx) {
+void buddy_free_2 (void * ptr, void * ctx) {
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st = (struct buddy_state *) ctx;
+  uint32_t block_idx = BUDDY_BLOCK_IDX (st, ptr, 2);
+
   uint32_t buddy = block_idx ^ 1;
   if (st->bitmap2 & (1ull << buddy)) {
     st->bitmap2 &= ~ (1ull << buddy);
@@ -543,23 +592,27 @@ void free_block2 (struct buddy_state *st, uint32_t block_idx) {
     if (st->avail_num[2] == 0) {
       if (st->prev_avail_idx2 != NULL) st->prev_avail_idx2->next_avail_idx2 = st->next_avail_idx2;
       if (st->next_avail_idx2 != NULL) st->next_avail_idx2->prev_avail_idx2 = st->prev_avail_idx2;
-      if (avail2_list_head == st) avail2_list_head = st->next_avail_idx2;
+      if (tls->avail2_list_head == st) tls->avail2_list_head = st->next_avail_idx2;
       st->prev_avail_idx2 = NULL;
       st->next_avail_idx2 = NULL;
     }
-    free_block3 (st, block_idx >> 1);
+    buddy_free_3 (BUDDY_IDX_BLOCK (st, block_idx >> 1, 3), st);
   } else {
     st->bitmap2 |= (1ull << block_idx);
     st->avail_num[2]++;
     if (st->avail_num[2] == 1) {
-      st->next_avail_idx2 = avail2_list_head;
-      if (avail2_list_head != NULL) avail2_list_head->prev_avail_idx2 = st;
-      avail2_list_head = st;
+      st->next_avail_idx2 = tls->avail2_list_head;
+      if (tls->avail2_list_head != NULL) tls->avail2_list_head->prev_avail_idx2 = st;
+      tls->avail2_list_head = st;
     }
   }
 }
 
-void free_block1 (struct buddy_state *st, uint32_t block_idx) {
+void buddy_free_1 (void * ptr, void * ctx) {
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st = (struct buddy_state *) ctx;
+  uint32_t block_idx = BUDDY_BLOCK_IDX (st, ptr, 1);
+
   uint32_t buddy = block_idx ^ 1;
   if (st->bitmap1 & (1ull << buddy)) {
     st->bitmap1 &= ~ (1ull << buddy);
@@ -567,23 +620,27 @@ void free_block1 (struct buddy_state *st, uint32_t block_idx) {
     if (st->avail_num[1] == 0) {
       if (st->prev_avail_idx1 != NULL) st->prev_avail_idx1->next_avail_idx1 = st->next_avail_idx1;
       if (st->next_avail_idx1 != NULL) st->next_avail_idx1->prev_avail_idx1 = st->prev_avail_idx1;
-      if (avail1_list_head == st) avail1_list_head = st->next_avail_idx1;
+      if (tls->avail1_list_head == st) tls->avail1_list_head = st->next_avail_idx1;
       st->prev_avail_idx1 = NULL;
       st->next_avail_idx1 = NULL;
     }
-    free_block2 (st, block_idx >> 1);
+    buddy_free_2 (BUDDY_IDX_BLOCK (st, block_idx >> 1, 2), st);
   } else {
     st->bitmap1 |= (1ull << block_idx);
     st->avail_num[1]++;
     if (st->avail_num[1] == 1) {
-      st->next_avail_idx1 = avail1_list_head;
-      if (avail1_list_head != NULL) avail1_list_head->prev_avail_idx1 = st;
-      avail1_list_head = st;
+      st->next_avail_idx1 = tls->avail1_list_head;
+      if (tls->avail1_list_head != NULL) tls->avail1_list_head->prev_avail_idx1 = st;
+      tls->avail1_list_head = st;
     }
   }
 }
 
-void free_block0 (struct buddy_state *st, uint32_t block_idx) {
+void buddy_free_0 (void * ptr, void * ctx) {
+  struct buddy_tls_t * tls = &buddy_tls[get_thread_id ()];
+  struct buddy_state * st = (struct buddy_state *) ctx;
+  uint32_t block_idx = BUDDY_BLOCK_IDX (st, ptr, 0);
+
   uint32_t buddy = block_idx ^ 1;
   uint32_t merge_cond0 = block_idx < 64 && (st->bitmap0[0] & (1ull << buddy));
   uint32_t merge_cond1 = block_idx >= 64 && (st->bitmap0[1] & (1ull << (buddy - 64)));
@@ -593,18 +650,18 @@ void free_block0 (struct buddy_state *st, uint32_t block_idx) {
     if (st->avail_num[0] == 0) {
       if (st->prev_avail_idx0 != NULL) st->prev_avail_idx0->next_avail_idx0 = st->next_avail_idx0;
       if (st->next_avail_idx0 != NULL) st->next_avail_idx0->prev_avail_idx0 = st->prev_avail_idx0;
-      if (avail0_list_head == st) avail0_list_head = st->next_avail_idx0;
+      if (tls->avail0_list_head == st) tls->avail0_list_head = st->next_avail_idx0;
       st->prev_avail_idx0 = NULL;
       st->next_avail_idx0 = NULL;
     }
-    free_block1 (st, block_idx >> 1);
+    buddy_free_1 (BUDDY_IDX_BLOCK (st, block_idx >> 1, 1), st);
   } else {
     if (block_idx < 64) st->bitmap0[0] |= (1ull << block_idx); else st->bitmap0[1] |= (1ull << (block_idx - 64));
     st->avail_num[0]++;
     if (st->avail_num[0] == 1) {
-      st->next_avail_idx0 = avail0_list_head;
-      if (avail0_list_head != NULL) avail0_list_head->prev_avail_idx0 = st;
-      avail0_list_head = st;
+      st->next_avail_idx0 = tls->avail0_list_head;
+      if (tls->avail0_list_head != NULL) tls->avail0_list_head->prev_avail_idx0 = st;
+      tls->avail0_list_head = st;
     }
   }
 }

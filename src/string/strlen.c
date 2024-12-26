@@ -11,10 +11,10 @@
 #define HIGHS (ONES * (UCHAR_MAX / 2 + 1))
 #define HASZERO(x) (((x) - ONES) & ~ (x) & HIGHS)
 
-uint64_t strlen (const char *s) {
-  const char *a = s;
+uint64_t strlen (const char * s) {
+  const char * a = s;
   typedef uint64_t __attribute__((__may_alias__)) word;
-  const word *w;
+  const word * w;
   for (/* empty */; (uintptr_t) s % ALIGN; s++) if (! (*s)) return (s - a);
   for (w = (const void *) s; ! HASZERO (*w); w++);
   s = (const void *) w;
