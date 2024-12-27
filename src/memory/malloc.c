@@ -181,7 +181,7 @@ void free (void * ptr) {
   uint16_t tid = get_thread_id ();
 
   /* Allocations of at least 128 pages are passed directly to mmap, call munmap directly */
-  if (alloc_tid == tid || size >= 524288) { free_internal (true_ptr, size, ctx); return; }
+  if (alloc_tid == tid || size > 262144) { free_internal (true_ptr, size, ctx); return; }
 
   /* Cross-thread deallocation */
   void * curr_head = (void *) __atomic_load_8 ((void **) &free_set_head[alloc_tid][tid], __ATOMIC_SEQ_CST);
