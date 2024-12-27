@@ -114,6 +114,6 @@ void * malloc (size_t len);
 
 void free (void * ptr);
 
-void clear_free_set (void);
+void free_set_clear (void);
 
 #endif

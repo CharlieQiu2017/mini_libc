@@ -32,25 +32,35 @@ static inline uint64_t get_class (uint64_t size) {
    Otherwise, it is put into a "free-set", waiting for the thread
    that originally made the allocation to free it.
 
-   For each pair of threads, we use a singly linked lists to represent
-   the "free-set". To insert an item, first load the current head of
-   the list. Set the 'next' field of the item to the current head.
-   If current head is NULL, simply set the current head to the item.
-   If it is not NULL, do a compare-and-swap to set the current head
-   to the item. The only possiblity where the CAS can fail is when
-   the allocating thread exchanged the head with NULL. In that case,
-   simply set 'next' of current item to NULL and set the current head
-   to the item.
+   Our "free-set" implementation follows the "non-linearizable queue"
+   used in snmalloc (https://dl.acm.org/doi/pdf/10.1145/3315573.3329980).
+   Each thread has a queue of its own. Each queue is a singly linked list
+   represented by its head and tail. Only the owner may take elements
+   out of this queue, while all other threads add elements (memory regions
+   to be freed) into this queue.
 
-   The 'next' field of the linked list is stored at the first 8 bytes of
-   the allocated region. After one calls free() no one should be using
+   We use the first 8 bytes of the allocated region as the 'next' pointer
+   of each queue element. When a thread calls free(), no one should be using
    these bytes anymore.
 
-   Each call to malloc() and free() will also call clear_free_set()
+   To remove an element from the queue, the owner simply sets the head to head.next,
+   and returns the previous head. To add an element to the queue, swap tail with
+   the new element, and set orig_tail.next to the new element.
+
+   There is a minor caveat with this concurrent queue. The last element of the
+   queue cannot be taken out, because some other thread might be writing to the
+   'next' field. We resolve this issue by introducing "placeholder" elements, one
+   for each thread. When the owner of the thread wants to take out the last element
+   of the queue, it inserts the placeholder into the queue. After other threads add
+   new elements so that the placeholder is no longer the last element, we take it out.
+
+   Each call to malloc() and free() will also call free_set_clear()
    which clears regions pending to be freed.
  */
 
-static void * free_set_head[LIBC_MAX_THREAD_NUM][LIBC_MAX_THREAD_NUM];
+static void * free_set_head[LIBC_MAX_THREAD_NUM];
+static void * free_set_tail[LIBC_MAX_THREAD_NUM];
+static void * free_set_placeholder[LIBC_MAX_THREAD_NUM];
 
 void * malloc (size_t size) {
   uint16_t tid = get_thread_id ();
@@ -59,7 +69,7 @@ void * malloc (size_t size) {
   if (size >= 1ull << 37) return NULL;
 
   /* Clear pending regions to be freed */
-  clear_free_set ();
+  free_set_clear ();
 
   size += 16; // Metadata
   uint64_t class_size = get_class (size);
@@ -133,39 +143,45 @@ static void free_internal (void * true_ptr, uint64_t size, void * ctx) {
 
 }
 
-void clear_free_set (void) {
+static void free_set_insert (uint16_t tid, void * elem) {
+  void * curr_tail;
+  _Bool fail;
+
+  __atomic_store_8 ((void **) elem, (uintptr_t) NULL, __ATOMIC_SEQ_CST);
+
+  /* Swap tail with elem, and store original tail into curr_tail */
+  asm volatile (
+    "1:\n"
+    "\tldxr %[load_reg], [%[tail_ptr_reg]]\n"
+    "\tstxr %w[fail_reg], %[new_val_reg], [%[tail_ptr_reg]]\n"
+    "\tcbnz %w[fail_reg], 1b\n"
+    "\tdmb ish\n"
+  : [load_reg] "=&r" (curr_tail), [fail_reg] "=&r" (fail)
+  : [tail_ptr_reg] "r" (&free_set_tail[tid]), [new_val_reg] "r" (elem)
+  : "memory"
+  );
+
+  __atomic_store_8 ((void **) curr_tail, (uintptr_t) elem, __ATOMIC_SEQ_CST);
+}
+
+void free_set_clear (void) {
   uint16_t tid = get_thread_id ();
-  if (tid >= LIBC_MAX_THREAD_NUM) return; // Quench GCC warning
+  void * curr_head = free_set_head[tid], * next;
 
-  for (uint16_t i = 0; i < LIBC_MAX_THREAD_NUM; ++i) {
-    if (i == tid) continue;
-
-    /* Swap free_set_head with NULL */
-    void * curr_head;
-    _Bool fail;
-    __asm volatile (
-      "1:\n"
-      "\tldxr %[load_reg], [%[ptr_reg]]\n"
-      "\tcbz %[load_reg], 1f\n"
-      "\tstlxr %w[fail_reg], %[zero_reg], [%[ptr_reg]]\n"
-      "\tcbnz %w[fail_reg], 1b\n"
-      "\tb 2f\n"
-      "\t1:\n"
-      "\tclrex\n"
-      "\t2:\n"
-      "\tdmb ish\n"
-      : [load_reg] "=&r" (curr_head), [fail_reg] "=&r" (fail)
-      : [ptr_reg] "r" (&free_set_head[tid][i]), [zero_reg] "r" (0)
-      : "memory"
-    );
-
-    while (curr_head != NULL) {
-      void * next = (void *) __atomic_load_8 ((void **) curr_head, __ATOMIC_SEQ_CST);
+  while (true) {
+    next = (void *) __atomic_load_8 ((void **) curr_head, __ATOMIC_SEQ_CST);
+    if (next != NULL && curr_head != (void *) &free_set_placeholder[tid]) {
+      /* If the current head is not the placeholder, free it */
       void * true_ptr = (void *) (((uintptr_t) curr_head) - 16);
       uint64_t size = __atomic_load_8 ((uint64_t *) true_ptr, __ATOMIC_SEQ_CST) & ((1ull << 37) - 1);
       void * ctx = (void *) __atomic_load_8 ((void **) (((uintptr_t) true_ptr) + 8), __ATOMIC_SEQ_CST);
       free_internal (true_ptr, size, ctx);
       curr_head = next;
+    } else {
+      /* If the last element is the placeholder, we have reached the end */
+      if (curr_head == (void *) &free_set_placeholder[tid]) break;
+      /* Otherwise, the placeholder is not in the queue, we insert it to take out the final element */
+      free_set_insert (tid, &free_set_placeholder[tid]);
     }
   }
 }
@@ -180,46 +196,13 @@ void free (void * ptr) {
   uint16_t alloc_tid = (uint16_t) (size_and_tid >> 38);
   uint16_t tid = get_thread_id ();
 
-  /* Allocations of at least 128 pages are passed directly to mmap, call munmap directly */
-  if (alloc_tid == tid || size > 262144) { free_internal (true_ptr, size, ctx); return; }
-
-  /* Cross-thread deallocation */
-  void * curr_head = (void *) __atomic_load_8 ((void **) &free_set_head[alloc_tid][tid], __ATOMIC_SEQ_CST);
-
-  if (curr_head == NULL) {
-    /* When curr_head is NULL, no other thread will modify it.
-       Hence directly set it to the region to be freed.
-     */
-
-    __atomic_store_8 ((void **) ptr, (uintptr_t) NULL, __ATOMIC_SEQ_CST);
-    __atomic_store_8 ((void **) &free_set_head[alloc_tid][tid], (uintptr_t) ptr, __ATOMIC_SEQ_CST);
+  if (alloc_tid == tid || size > 262144) {
+    /* Allocations of at least 128 pages are passed directly to mmap, call munmap directly */
+    free_internal (true_ptr, size, ctx);
   } else {
-    /* When curr_head is non-NULL, the allocating thread may swap it with
-       NULL at any given time. Hence use LL/SC to update the list head.
-     */
-
-    do {
-      _Bool fail = 1;
-      __atomic_store_8 ((void **) ptr, (uintptr_t) curr_head, __ATOMIC_SEQ_CST);
-      __asm volatile (
-	"1:\n"
-	"\tldxr %[load_reg], [%[ptr_reg]]\n"
-	"\tcmp %[load_reg], %[orig_val_reg]\n"
-	"\tb.ne 1f\n"
-	"\tstlxr %w[fail_reg], %[new_val_reg], [%[ptr_reg]]\n"
-	"\tcbnz %w[fail_reg], 1b\n"
-	"\tb 2f\n"
-	"\t1:\n"
-	"\tclrex\n"
-	"\t2:\n"
-	"\tdmb ish\n"
-	: [load_reg] "=&r" (curr_head), [fail_reg] "=&r" (fail)
-	: [ptr_reg] "r" (&free_set_head[alloc_tid][tid]), [orig_val_reg] "r" (curr_head), [new_val_reg] "r" (ptr)
-	: "memory"
-      );
-      if (!fail) break;
-    } while (true);
+    /* Cross-thread deallocation */
+    free_set_insert (alloc_tid, ptr);
   }
 
-  clear_free_set ();
+  free_set_clear ();
 }
