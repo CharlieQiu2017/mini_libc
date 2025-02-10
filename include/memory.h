@@ -112,6 +112,8 @@ void small_free (void * ptr, void * ctx, size_t len);
 
 void * malloc (size_t len);
 
+void * aligned_alloc (size_t alignment, size_t size);
+
 void free (void * ptr);
 
 void free_set_clear (void);

@@ -110,6 +110,65 @@ void * malloc (size_t size) {
   return (void *) (((uintptr_t) ptr) + 16);
 }
 
+void * aligned_alloc (size_t alignment, size_t size) {
+  uint16_t tid = get_thread_id ();
+  if (alignment <= 16) return malloc (size);
+
+  if (!size) return NULL;
+  if (size >= 1ull << 37) return NULL;
+
+  unsigned int alignment_log = __builtin_ctzll (alignment);
+  if (alignment_log >= 36) return NULL;
+
+  size += alignment;
+  uint64_t class_size = get_class (size);
+  if (class_size >= 1ull << 37) return NULL;
+
+  void * ptr = NULL, * ctx = NULL;
+  if (class_size <= 2048) {
+
+    ptr = small_alloc (class_size, &ctx);
+
+  } else if (class_size <= 262144) {
+
+    if (class_size == 4096) {
+      ptr = buddy_alloc_0 (&ctx);
+    } else if (class_size == 8192) {
+      ptr = buddy_alloc_1 (&ctx);
+    } else if (class_size == 16384) {
+      ptr = buddy_alloc_2 (&ctx);
+    } else if (class_size == 32768) {
+      ptr = buddy_alloc_3 (&ctx);
+    } else if (class_size == 65536) {
+      ptr = buddy_alloc_4 (&ctx);
+    } else if (class_size == 131072) {
+      ptr = buddy_alloc_5 (&ctx);
+    } else if (class_size == 262144) {
+      ptr = buddy_alloc_6 (&ctx);
+    }
+
+  } else {
+
+    ptr = mmap_alloc (class_size, &ctx);
+
+  }
+
+  if (ctx == NULL) return NULL;
+
+  /* Find k such that (ptr + k) mod alignment = -16 */
+  uintptr_t ptr_int = (uintptr_t) ptr;
+  uintptr_t ptr_mod = (ptr_int & ((1 << alignment_log) - 1));
+  /* Since ptr_int is a multiple of 16,
+     we have ptr_mod <= alignment - 16
+   */
+  ptr_int += (alignment - 16 - ptr_mod);
+  ptr = (void *) ptr_int;
+
+  __atomic_store_8 ((uint64_t *) ptr, size | (((uint64_t) tid) << 38), __ATOMIC_SEQ_CST);
+  __atomic_store_8 ((void **) (((uintptr_t) ptr) + 8), (uintptr_t) ctx, __ATOMIC_SEQ_CST);
+  return (void *) (((uintptr_t) ptr) + 16);
+}
+
 static void free_internal (void * true_ptr, uint64_t size, void * ctx) {
   uint64_t class_size = get_class (size);
 
