@@ -47,22 +47,22 @@ void * memset (void * dest, uint32_t c, uint64_t n) {
    * conditional below ensures that the subsequent offsets
    * are valid (e.g. !(n<=24) implies n>=28). */
 
-  *(u32 *)(s+0) = c32;
-  *(u32 *)(s+n-4) = c32;
+  *(u32 *)(s + 0) = c32;
+  *(u32 *)(s + n - 4) = c32;
   if (n <= 8) return dest;
-  *(u32 *)(s+4) = c32;
-  *(u32 *)(s+8) = c32;
-  *(u32 *)(s+n-12) = c32;
-  *(u32 *)(s+n-8) = c32;
+  *(u32 *)(s + 4) = c32;
+  *(u32 *)(s + 8) = c32;
+  *(u32 *)(s + n - 12) = c32;
+  *(u32 *)(s + n - 8) = c32;
   if (n <= 24) return dest;
-  *(u32 *)(s+12) = c32;
-  *(u32 *)(s+16) = c32;
-  *(u32 *)(s+20) = c32;
-  *(u32 *)(s+24) = c32;
-  *(u32 *)(s+n-28) = c32;
-  *(u32 *)(s+n-24) = c32;
-  *(u32 *)(s+n-20) = c32;
-  *(u32 *)(s+n-16) = c32;
+  *(u32 *)(s + 12) = c32;
+  *(u32 *)(s + 16) = c32;
+  *(u32 *)(s + 20) = c32;
+  *(u32 *)(s + 24) = c32;
+  *(u32 *)(s + n - 28) = c32;
+  *(u32 *)(s + n - 24) = c32;
+  *(u32 *)(s + n - 20) = c32;
+  *(u32 *)(s + n - 16) = c32;
 
   /* Align to a multiple of 8 so we can fill 64 bits at a time,
    * and avoid writing the same bytes twice as much as is
@@ -76,12 +76,12 @@ void * memset (void * dest, uint32_t c, uint64_t n) {
    * filled, so any remainder when n drops below 32 can be
    * safely ignored. */
 
-  u64 c64 = c32 | ((u64)c32 << 32);
+  u64 c64 = c32 | ((u64) c32 << 32);
   for (/* empty */; n >= 32; n -= 32, s += 32) {
-    *(u64 *)(s+0) = c64;
-    *(u64 *)(s+8) = c64;
-    *(u64 *)(s+16) = c64;
-    *(u64 *)(s+24) = c64;
+    *(u64 *)(s + 0) = c64;
+    *(u64 *)(s + 8) = c64;
+    *(u64 *)(s + 16) = c64;
+    *(u64 *)(s + 24) = c64;
   }
 
   return dest;
