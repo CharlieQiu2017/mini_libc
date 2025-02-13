@@ -1,5 +1,6 @@
 /* ioctl.h
    Adapted from Linux kernel include/uapi/asm-generic/ioctl.h
+   Adapted from Linux kernel include/uapi/asm-generic/ioctls.h
  */
 
 #ifndef IOCTL_H

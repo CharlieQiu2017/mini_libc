@@ -42,8 +42,8 @@
 #define EPOLLMSG	0x00000400
 
 typedef union epoll_data {
-  void *ptr;
-  int fd;
+  void * ptr;
+  fd_t fd;
   uint32_t u32;
   uint64_t u64;
 } epoll_data_t;
@@ -68,7 +68,7 @@ struct epoll_params {
 
 int epoll_create (int size);
 int epoll_create1 (int flags);
-int epoll_ctl (fd_t epfd, int op, fd_t fd, struct epoll_event *event);
-int epoll_wait (fd_t epfd, struct epoll_event *events, int maxevents, int timeout);
+int epoll_ctl (fd_t epfd, int op, fd_t fd, struct epoll_event * event);
+int epoll_wait (fd_t epfd, struct epoll_event * events, int maxevents, int timeout);
 
 #endif
