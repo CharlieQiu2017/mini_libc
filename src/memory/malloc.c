@@ -117,6 +117,8 @@ void * aligned_alloc (size_t alignment, size_t size) {
   if (!size) return NULL;
   if (size >= 1ull << 37) return NULL;
 
+  free_set_clear ();
+
   unsigned int alignment_log = __builtin_ctzll (alignment);
   if (alignment_log >= 36) return NULL;
 
