@@ -1,6 +1,7 @@
 /* time.h
    Adapted from Linux kernel include/uapi/linux/time.h
    Adapted from Linux kernel include/uapi/linux/timex.h
+   Adapted from Linux kernel include/uapi/linux/timerfd.h
  */
 
 #ifndef TIME_H
@@ -19,6 +20,9 @@
 #define CLOCK_REALTIME_ALARM		8
 #define CLOCK_BOOTTIME_ALARM		9
 #define CLOCK_TAI			11
+
+#define TFD_CLOEXEC O_CLOEXEC
+#define TFD_NONBLOCK O_NONBLOCK
 
 typedef int clockid_t;
 
