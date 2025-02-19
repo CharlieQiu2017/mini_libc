@@ -16,8 +16,8 @@ struct small_class_tls_t {
 
 static struct small_class_tls_t small_class_tls[LIBC_MAX_THREAD_NUM];
 
-#define SMALL_CLASS_IDX_SLOT(area, idx, size) ((void *) ((&(area)->area[0]) + (idx) * (size)))
-#define SMALL_CLASS_SLOT_IDX(area, slot, size) ((((uintptr_t) (slot)) - ((uintptr_t) (&(area)->area[0]))) / (size))
+#define SMALL_CLASS_IDX_SLOT(area_, idx, size) ((void *) ((&(area_)->area[0]) + (idx) * (size)))
+#define SMALL_CLASS_SLOT_IDX(area_, slot, size) ((((uintptr_t) (slot)) - ((uintptr_t) (&(area_)->area[0]))) / (size))
 
 /* allocate_class_area
    Allocate new class area using buddy allocator.
