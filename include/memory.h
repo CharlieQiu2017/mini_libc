@@ -3,6 +3,10 @@
 
 #include <io.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define PROT_READ 0x1
 #define PROT_WRITE 0x2
 #define PROT_EXEC 0x4
@@ -117,5 +121,9 @@ void * aligned_alloc (size_t alignment, size_t size);
 void free (void * ptr);
 
 void free_set_clear (void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

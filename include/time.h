@@ -9,6 +9,10 @@
 
 #include <io.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define CLOCK_REALTIME			0
 #define CLOCK_MONOTONIC			1
 #define CLOCK_PROCESS_CPUTIME_ID	2
@@ -85,5 +89,9 @@ int clock_adjtime (clockid_t clockid, struct timex * buf);
 fd_t timerfd_create (clockid_t clockid, int flags);
 int timerfd_settime (fd_t fd, int flags, const struct itimerspec * new_value, struct itimerspec * old_value);
 int timerfd_gettime (fd_t fd, struct itimerspec * curr_value);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

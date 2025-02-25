@@ -10,6 +10,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef int fd_t;
 typedef unsigned short umode_t;
 
@@ -80,5 +84,9 @@ fd_t dup (fd_t fd);
 int fcntl (fd_t fd, int cmd, unsigned long arg);
 
 ssize_t puts (const char * str);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -8,6 +8,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
  * Flags for getrandom(2)
  *
@@ -20,5 +24,9 @@
 #define GRND_INSECURE	0x0004
 
 ssize_t getrandom (void * buf, size_t buflen, unsigned int flags);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

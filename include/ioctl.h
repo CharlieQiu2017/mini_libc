@@ -8,6 +8,10 @@
 
 #include <io.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int ioctl (fd_t fd, unsigned long request, void * argp);
 
 /* Hard-coded ioctl commands */
@@ -46,5 +50,9 @@ int ioctl (fd_t fd, unsigned long request, void * argp);
 #define _IOR(type,nr,argtype)		_IOC(_IOC_READ,(type),(nr),(sizeof(argtype)))
 #define _IOW(type,nr,argtype)		_IOC(_IOC_WRITE,(type),(nr),(sizeof(argtype)))
 #define _IOWR(type,nr,argtype)		_IOC(_IOC_READ|_IOC_WRITE,(type),(nr),(sizeof(argtype)))
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

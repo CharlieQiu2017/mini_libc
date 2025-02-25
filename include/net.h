@@ -11,6 +11,10 @@
 #include <stdint.h>
 #include <io.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define AF_UNIX 1
 #define AF_INET 2
 
@@ -64,7 +68,8 @@ typedef unsigned short sa_family_t;
 
 struct sockaddr {
   sa_family_t sa_family;
-  char sa_data[];
+  /* C++ forbids variable-length array. Make it happy. */
+  /* char sa_data[]; */
 };
 
 struct sockaddr_un {
@@ -84,7 +89,7 @@ struct sockaddr_in {
   unsigned short sin_port; /* Port number (big endian) */
   struct in_addr sin_addr; /* IP */
 
-  char padding[6];
+  char padding[8];
 };
 
 fd_t socket (int domain, int type, int protocol);
@@ -104,5 +109,9 @@ static inline uint16_t htons (uint16_t hostshort) { return __builtin_bswap16 (ho
 static inline uint16_t ntohs (uint16_t netshort) { return __builtin_bswap16 (netshort); }
 static inline uint32_t htonl (uint32_t hostlong) { return __builtin_bswap32 (hostlong); }
 static inline uint32_t ntohl (uint32_t netlong) { return __builtin_bswap32 (netlong); }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
