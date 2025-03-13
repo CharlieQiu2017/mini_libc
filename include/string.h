@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #ifdef __cplusplus
+#define restrict
 extern "C" {
 #endif
 
@@ -17,6 +18,7 @@ int memcmp (const void * vl, const void * vr, size_t n);
 
 #ifdef __cplusplus
 }
+#undef restrict
 #endif
 
 #endif
