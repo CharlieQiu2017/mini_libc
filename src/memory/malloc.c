@@ -62,6 +62,12 @@ static void * free_set_head[LIBC_MAX_THREAD_NUM];
 static void * free_set_tail[LIBC_MAX_THREAD_NUM];
 static void * free_set_placeholder[LIBC_MAX_THREAD_NUM];
 
+void malloc_init (void) {
+  uint16_t tid = get_thread_id ();
+  free_set_head[tid] = &free_set_placeholder[tid];
+  free_set_tail[tid] = &free_set_placeholder[tid];
+}
+
 void * malloc (size_t size) {
   uint16_t tid = get_thread_id ();
 

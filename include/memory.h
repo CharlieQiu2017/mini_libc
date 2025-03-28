@@ -114,6 +114,9 @@ void * small_alloc (size_t len, void ** ctx_ptr);
 
 void small_free (void * ptr, void * ctx, size_t len);
 
+/* Must be called by each thread upon initialization */
+void malloc_init (void);
+
 void * malloc (size_t len);
 
 void * aligned_alloc (size_t alignment, size_t size);
