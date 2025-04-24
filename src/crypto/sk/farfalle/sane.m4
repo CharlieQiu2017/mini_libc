@@ -69,7 +69,7 @@ void farfalle_$1_sane_wrap (struct farfalle_$1_sane_state * st, const unsigned c
   if (msg_len > 0) {
     unsigned char final_byte = st->parity * 2 + 1;
     farfalle_$1_helper_init (&hst);
-    farfalle_$1_add_string_part (&st->fst, &hst, msg, msg_len);
+    farfalle_$1_add_string_part (&st->fst, &hst, ct_out, msg_len);
     farfalle_$1_add_string_part (&st->fst, &hst, &final_byte, 1);
     farfalle_$1_finalize_string (&st->fst, &hst);
   }
@@ -100,7 +100,7 @@ unsigned char farfalle_$1_sane_unwrap (struct farfalle_$1_sane_state * st, const
   if (ct_len > 0) {
     unsigned char final_byte = st->parity * 2 + 1;
     farfalle_$1_helper_init (&hst);
-    farfalle_$1_add_string_part (&st->fst, &hst, msg_out, ct_len);
+    farfalle_$1_add_string_part (&st->fst, &hst, ct, ct_len);
     farfalle_$1_add_string_part (&st->fst, &hst, &final_byte, 1);
     farfalle_$1_finalize_string (&st->fst, &hst);
   }
