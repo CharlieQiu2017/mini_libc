@@ -1,0 +1,7 @@
+#define FARFALLE_PERM_LEN 200
+#define farfalle_perm_b keccak_p_1600_6_permute
+#define farfalle_perm_c keccak_p_1600_6_permute
+#define farfalle_perm_d keccak_p_1600_6_permute
+#define farfalle_perm_e keccak_p_1600_6_permute
+#define farfalle_roll_c farfalle_kravatte_roll_c
+#define farfalle_roll_e farfalle_kravatte_roll_e
