@@ -14,28 +14,6 @@
 #define UOV_M 44
 #define UOV_V 68
 
-void uov_hash (const uint8_t * msg, size_t len, const uint8_t * salt, uint8_t * out) {
-  uint64_t state[25] = {0};
-  uint32_t curr_offset = 0;
-  sponge_keccak_1600_absorb (state, &curr_offset, msg, len, 136);
-  sponge_keccak_1600_absorb (state, &curr_offset, salt, 16, 136);
-  sponge_keccak_1600_finalize (state, curr_offset, 15 + 16, 136);
-  curr_offset = 0;
-  sponge_keccak_1600_squeeze (state, &curr_offset, out, UOV_M, 136);
-}
-
-void uov_expand_v (const uint8_t * msg, size_t len, const uint8_t * salt, const uint8_t * seed_sk, uint8_t ctr, uint8_t * out) {
-  uint64_t state[25] = {0};
-  uint32_t curr_offset = 0;
-  sponge_keccak_1600_absorb (state, &curr_offset, msg, len, 136);
-  sponge_keccak_1600_absorb (state, &curr_offset, salt, 16, 136);
-  sponge_keccak_1600_absorb (state, &curr_offset, seed_sk, 32, 136);
-  sponge_keccak_1600_absorb (state, &curr_offset, &ctr, 1, 136);
-  sponge_keccak_1600_finalize (state, curr_offset, 15 + 16, 136);
-  curr_offset = 0;
-  sponge_keccak_1600_squeeze (state, &curr_offset, out, UOV_V, 136);
-}
-
 #define O_ENTRY(o,i,j) (o[UOV_V * (j) + (i)])
 #define P1_ENTRY(p1,i,j,k) (p1[((2 * UOV_V - (j) + 1) * (j) / 2 + ((k) - (j))) * UOV_M + (i)])
 #define P2_ENTRY(p2,i,j,k) (p2[((j) * UOV_M + (k)) * UOV_M + (i)])
@@ -51,11 +29,34 @@ uint8_t uov_sign (const uint8_t * seed_sk, const uint8_t * o, const uint8_t * p1
 #define L_ENTRY(l,i,j) (l[(i) * UOV_M + (j)])
   uint8_t ctr = 0;
 
-  uov_hash (msg, len, salt, t);
+  uint64_t hash_st[25] = {0}, hash_st_copy[25];
+  uint32_t curr_offset = 0, curr_offset_copy;
+  sponge_keccak_1600_absorb (hash_st, &curr_offset, msg, len, 136);
+  sponge_keccak_1600_absorb (hash_st, &curr_offset, salt, 16, 136);
+
+  /* Make a copy of hash state, so that when computing v
+     we do not need to hash again the msg */
+  memcpy (hash_st_copy, hash_st, 200);
+  curr_offset_copy = curr_offset;
+
+  sponge_keccak_1600_finalize (hash_st, curr_offset, 15 + 16, 136);
+  curr_offset = 0;
+  sponge_keccak_1600_squeeze (hash_st, &curr_offset, t, UOV_M, 136);
+
+  /* In the following loop, each iteration computes a new value of v.
+     The only thing that changes in the computation of v is ctr.
+     Therefore, hash seed_sk now.
+   */
+  sponge_keccak_1600_absorb (hash_st_copy, &curr_offset_copy, seed_sk, 32, 136);
 
   do {
     /* Step 1: compute v */
-    uov_expand_v (msg, len, salt, seed_sk, ctr, v);
+    memcpy (hash_st, hash_st_copy, 200);
+    curr_offset = curr_offset_copy;
+    sponge_keccak_1600_absorb (hash_st, &curr_offset, &ctr, 1, 136);
+    sponge_keccak_1600_finalize (hash_st, curr_offset, 15 + 16, 136);
+    curr_offset = 0;
+    sponge_keccak_1600_squeeze (hash_st, &curr_offset, v, UOV_V, 136);
 
     /* Step 2: compute t - y = t - v^T * P^(1) * v */
     for (uint32_t i = 0; i < UOV_M; ++i) {
@@ -164,7 +165,13 @@ uint8_t uov_verify (const uint8_t * p1, const uint8_t * p2, const uint8_t * p3, 
   uint8_t t[UOV_M];
   uint8_t y[UOV_M];
 
-  uov_hash (msg, len, salt, t);
+  uint64_t hash_st[25] = {0};
+  uint32_t curr_offset = 0;
+  sponge_keccak_1600_absorb (hash_st, &curr_offset, msg, len, 136);
+  sponge_keccak_1600_absorb (hash_st, &curr_offset, salt, 16, 136);
+  sponge_keccak_1600_finalize (hash_st, curr_offset, 15 + 16, 136);
+  curr_offset = 0;
+  sponge_keccak_1600_squeeze (hash_st, &curr_offset, t, UOV_M, 136);
 
   for (uint32_t i = 0; i < UOV_M; ++i) {
     y[i] = 0;
