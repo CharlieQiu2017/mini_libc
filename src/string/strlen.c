@@ -12,18 +12,30 @@
    All bits lower than the LSB are set to 1, and all higher bits including the LSB are set to 0.
    If every byte of x is non-zero, then (x - ONES) & ~ x applies this pattern to every byte in x.
    Hence the highest bit of every byte must be set to 0.
-   Now if (x - ONES) & ~ x & HIGHS != 0, then at least one byte must be non-zero.
+   Now if (x - ONES) & ~ x & HIGHS != 0, then at least one byte must be zero.
  */
 
 #define HASZERO(x) (((x) - ONES) & ~ (x) & HIGHS)
 
 size_t strlen (const char * s) {
-  const char * a = s;
-  typedef uint64_t __attribute__((__may_alias__)) word;
-  const word * w;
-  for (/* empty */; (uintptr_t) s % 8; s++) if (! (*s)) return (s - a);
-  for (w = (const void *) s; ! HASZERO (*w); w++);
-  s = (const void *) w;
-  for (/* empty */; *s; s++);
-  return (s - a);
+  /* 1. Store the initial position */
+  const char * orig_s = s;
+
+  /* 2. Check for NUL until s is aligned */
+  while ((uintptr_t) s & 7) { if (*s == 0) return s - orig_s; s++; }
+
+  /* 3. Repeat read 8 bytes of s and check for NUL */
+  uint64_t buf;
+
+  while (1) {
+    buf = * ((uint64_t *) s);
+    if (HASZERO (buf)) break;
+    s += 8;
+  }
+
+  /* 4. Individually check the final bytes */
+
+  while (buf & 0xff) { buf >>= 8; s++; }
+
+  return s - orig_s;
 }

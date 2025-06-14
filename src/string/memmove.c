@@ -6,8 +6,6 @@
 #include <string.h>
 #include <stdint.h>
 
-typedef __attribute__((__may_alias__)) size_t WT;
-
 void * memmove (void * dest, const void * src, size_t n) {
   char * d = dest;
   const char * s = src;
@@ -23,27 +21,114 @@ void * memmove (void * dest, const void * src, size_t n) {
      If s < d, then s - d = 2^64 - (d - s), and d - s <= 2^64 - n, so s - d >= n.
      So to test whether d - s >= n we also only needs to test s - d - n <= 2^64 - 2 * n.
    */
-  if ((uintptr_t) s - (uintptr_t) d - n <= -2 * n) return memcpy(d, s, n);
+  if ((uintptr_t) s - (uintptr_t) d - n <= -2 * n) return memcpy (d, s, n);
 
-  if (d < s) {
-    if ((uintptr_t) s % 8 == (uintptr_t) d % 8) {
-      while ((uintptr_t) d % 8) {
-	if (!n--) return dest;
-	*d++ = *s++;
+  if ((uintptr_t) d < (uintptr_t) s) {
+
+    /* 1. Align s */
+    while (n && ((uintptr_t) s & 7)) { *d = *s; s++; d++; n--; }
+    if (!n) return dest;
+
+    /* 2. If d is also aligned, copy 8 bytes at once */
+    uint64_t s_buf, s_buf2;
+
+    if (((uintptr_t) d & 7) == 0) {
+      while (n >= 8) {
+	s_buf = * ((const uint64_t *) s);
+	* ((uint64_t *) d) = s_buf;
+
+	s += 8; d += 8; n -= 8;
       }
-      for (/* empty */; n >= 8; n -= 8, d += 8, s += 8) *(WT *) d = *(WT *) s;
+
+      while (n) { *d = *s; s++; d++; n--; }
+      return dest;
     }
-    for (/* empty */; n; n--) *d++ = *s++;
+
+    /* 3. Otherwise, first copy (8 - d_off) bytes to align d */
+    uint32_t d_off = (uintptr_t) d & 7;
+    s_buf = * ((const uint64_t *) s);
+
+    uint32_t i = 8 - d_off;
+    while (i) { *d = s_buf & 0xff; s_buf >>= 8; d++; i--; }
+
+    s += 8;
+    n -= (8 - d_off);
+
+    /* 4. Repeat copy 8 bytes to d at once */
+    while (n >= 8) {
+      s_buf2 = * ((const uint64_t *) s);
+      * ((uint64_t *) d) = s_buf | (s_buf2 << (8 * d_off));
+
+      s_buf = s_buf2 >> (8 * (8 - d_off));
+      s += 8;
+      d += 8;
+      n -= 8;
+    }
+
+    if (!n) return dest;
+
+    /* 5. Copy final bytes */
+    if (n <= d_off) s_buf2 = 0; else s_buf2 = * ((const uint64_t *) s);
+    s_buf = s_buf | (s_buf2 << (8 * d_off));
+
+    while (n) { *d = s_buf & 0xff; s_buf >>= 8; d++; n--; }
+    return dest;
+
   } else {
-    if ((uintptr_t) s % 8 == (uintptr_t) d % 8) {
-      while ((uintptr_t)(d + n) % 8) {
-	if (!n--) return dest;
-	d[n] = s[n];
-      }
-      while (n >= 8) n -= 8, *(WT *)(d + n) = *(WT *)(s + n);
-    }
-    while (n) { n--; d[n] = s[n]; }
-  }
 
-  return dest;
+    /* Symmetric to the case above,
+       except we copy backwards. */
+    s = s + n;
+    d = d + n;
+
+    while (n && ((uintptr_t) s & 7)) { s--; d--; *d = *s; n--; }
+    if (!n) return dest;
+
+    uint64_t s_buf, s_buf2;
+
+    if (((uintptr_t) d & 7) == 0) {
+      while (n >= 8) {
+	s -= 8;
+	d -= 8;
+
+	s_buf = * ((const uint64_t *) s);
+	* ((uint64_t *) d) = s_buf;
+
+	n -= 8;
+      }
+
+      while (n) { s--; d--; *d = *s; n--; }
+      return dest;
+    }
+
+    uint32_t d_off = (uintptr_t) d & 7;
+    s -= 8;
+    s_buf = * ((const uint64_t *) s);
+
+    uint32_t i = d_off;
+    while (i) { d--; *d = s_buf & (0xffull << 56); s_buf <<= 8; i--; }
+
+    n -= d_off;
+
+    while (n >= 8) {
+      s -= 8;
+      d -= 8;
+
+      s_buf2 = * ((const uint64_t *) s);
+      * ((uint64_t *) d) = s_buf | (s_buf2 >> (8 * (8 - d_off)));
+
+      s_buf = s_buf2 << (8 * d_off);
+      n -= 8;
+    }
+
+    if (!n) return dest;
+
+    s -= 8;
+    if (n <= 8 - d_off) s_buf2 = 0; else s_buf2 = * ((const uint64_t *) s);
+    s_buf = s_buf | (s_buf2 >> (8 * (8 - d_off)));
+
+    while (n) { d--; *d = s_buf & (0xffull << 56); s_buf <<= 8; n--; }
+    return dest;
+
+  }
 }

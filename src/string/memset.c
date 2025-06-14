@@ -77,11 +77,13 @@ void * memset (void * dest, uint32_t c, size_t n) {
    * safely ignored. */
 
   u64 c64 = c32 | ((u64) c32 << 32);
-  for (/* empty */; n >= 32; n -= 32, s += 32) {
+
+  while (n >= 32) {
     *(u64 *)(s + 0) = c64;
     *(u64 *)(s + 8) = c64;
     *(u64 *)(s + 16) = c64;
     *(u64 *)(s + 24) = c64;
+    n -= 32; s += 32;
   }
 
   return dest;

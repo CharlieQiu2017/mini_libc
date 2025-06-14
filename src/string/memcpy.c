@@ -13,27 +13,28 @@ void * memcpy (void * restrict dest, const void * restrict src, size_t n) {
   uint32_t w, x;
 
   /* Align src to 4-byte boundary */
-  for (/* empty */; (uintptr_t) s % 4 && n; n--) *d++ = *s++;
+  while (n && ((uintptr_t) s & 3)) { *d++ = *s++; n--; }
 
   /* If dst is also aligned to 4-byte boundary,
      then simply copy 4 bytes at once.
    */
-  if ((uintptr_t) d % 4 == 0) {
-    for (/* empty */; n >= 16; s += 16, d += 16, n -= 16) {
-      *(u32 *)(d + 0) = *(u32 *)(s + 0);
-      *(u32 *)(d + 4) = *(u32 *)(s + 4);
-      *(u32 *)(d + 8) = *(u32 *)(s + 8);
-      *(u32 *)(d + 12) = *(u32 *)(s + 12);
+  if (((uintptr_t) d & 3) == 0) {
+    while (n >= 16) {
+      * (u32 *) (d + 0) = * (u32 *) (s + 0);
+      * (u32 *) (d + 4) = * (u32 *) (s + 4);
+      * (u32 *) (d + 8) = * (u32 *) (s + 8);
+      * (u32 *) (d + 12) = * (u32 *) (s + 12);
+      s += 16; d += 16; n -= 16;
     }
 
     /* Handle remaining tail */
     if (n & 8) {
-      *(u32 *)(d + 0) = *(u32 *)(s + 0);
-      *(u32 *)(d + 4) = *(u32 *)(s + 4);
+      * (u32 *) (d + 0) = * (u32 *) (s + 0);
+      * (u32 *) (d + 4) = * (u32 *) (s + 4);
       d += 8; s += 8;
     }
     if (n & 4) {
-      *(u32 *)(d + 0) = *(u32 *)(s + 0);
+      * (u32 *) (d + 0) = * (u32 *) (s + 0);
       d += 4; s += 4;
     }
     if (n & 2) {
@@ -50,14 +51,14 @@ void * memcpy (void * restrict dest, const void * restrict src, size_t n) {
    */
 
   if (n >= 32) {
-    switch ((uintptr_t) d % 4) {
+    switch ((uintptr_t) d & 3) {
     case 1:
       w = *(u32 *) s;
       *d++ = *s++;
       *d++ = *s++;
       *d++ = *s++;
       n -= 3;
-      for (/* empty */; n >= 17; s += 16, d += 16, n -= 16) {
+      while (n >= 17) {
 	x = *(u32 *)(s + 1);
 	*(u32 *)(d + 0) = (w >> 24) | (x << 8);
 	w = *(u32 *)(s + 5);
@@ -66,6 +67,7 @@ void * memcpy (void * restrict dest, const void * restrict src, size_t n) {
 	*(u32 *)(d + 8) = (w >> 24) | (x << 8);
 	w = *(u32 *)(s + 13);
 	*(u32 *)(d + 12) = (x >> 24) | (w << 8);
+	s += 16; d += 16; n -= 16;
       }
       break;
     case 2:
@@ -73,7 +75,7 @@ void * memcpy (void * restrict dest, const void * restrict src, size_t n) {
       *d++ = *s++;
       *d++ = *s++;
       n -= 2;
-      for (/* empty */; n >= 18; s += 16, d += 16, n -= 16) {
+      while (n >= 18) {
 	x = *(u32 *)(s + 2);
 	*(u32 *)(d + 0) = (w >> 16) | (x << 16);
 	w = *(u32 *)(s + 6);
@@ -82,13 +84,14 @@ void * memcpy (void * restrict dest, const void * restrict src, size_t n) {
 	*(u32 *)(d + 8) = (w >> 16) | (x << 16);
 	w = *(u32 *)(s + 14);
 	*(u32 *)(d + 12) = (x >> 16) | (w << 16);
+	s += 16; d += 16; n -= 16;
       }
       break;
     case 3:
       w = *(u32 *)s;
       *d++ = *s++;
       n -= 1;
-      for (/* empty */; n >= 19; s += 16, d += 16, n -= 16) {
+      while (n >= 19) {
 	x = *(u32 *)(s + 3);
 	*(u32 *)(d + 0) = (w >> 8) | (x << 24);
 	w = *(u32 *)(s + 7);
@@ -97,6 +100,7 @@ void * memcpy (void * restrict dest, const void * restrict src, size_t n) {
 	*(u32 *)(d + 8) = (w >> 8) | (x << 24);
 	w = *(u32 *)(s + 15);
 	*(u32 *)(d + 12) = (x >> 8) | (w << 24);
+	s += 16; d += 16; n -= 16;
       }
       break;
     }
