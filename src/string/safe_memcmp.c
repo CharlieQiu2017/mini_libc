@@ -13,6 +13,7 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
   uint64_t result = 0;
 
   while (n && ((uintptr_t) l & 7)) { result |= *l ^ *r; l++; r++; n--; }
+  if (!n) return result;
 
   uint64_t l_buf, l_buf2, l_buf3, r_buf, mask;
 
