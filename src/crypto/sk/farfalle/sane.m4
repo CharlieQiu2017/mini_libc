@@ -6,6 +6,7 @@
 '
 
 `
+#include <string.h>
 #include <crypto/common.h>
 #include <crypto/sk/farfalle/farfalle.h>
 #include <crypto/sk/farfalle/farfalle_helper.h>
