@@ -22,7 +22,7 @@ int strncmp (const char * sl, const char * sr, size_t n) {
     while (n >= 8) {
       l_buf = * ((const uint64_t *) l);
       r_buf = * ((const uint64_t *) r);
-      if (HASZERO (l_buf) || l_buf != r_buf) { end_flag = 1; break; }
+      if (HASZERO (l_buf) || l_buf != r_buf) break;
       l += 8;
       r += 8;
       n -= 8;
@@ -30,16 +30,16 @@ int strncmp (const char * sl, const char * sr, size_t n) {
 
     if (!n) return 0;
 
-    if (end_flag) {
-      while ((l_buf & 0xff) && ((l_buf & 0xff) == (r_buf & 0xff))) { l_buf >>= 8; r_buf >>= 8; }
+    if (n < 8) {
+      l_buf = * ((const uint64_t *) l);
+      r_buf = * ((const uint64_t *) r);
+
+      while (n && (l_buf & 0xff) && ((l_buf & 0xff) == (r_buf & 0xff))) { l_buf >>= 8; r_buf >>= 8; n--; }
+      if (!n) return 0;
       return ((int) (l_buf & 0xff)) - ((int) (r_buf & 0xff));
     }
 
-    l_buf = * ((const uint64_t *) l);
-    r_buf = * ((const uint64_t *) r);
-
-    while (n && (l_buf & 0xff) && ((l_buf & 0xff) == (r_buf & 0xff))) { l_buf >>= 8; r_buf >>= 8; n--; }
-    if (!n) return 0;
+    while ((l_buf & 0xff) && ((l_buf & 0xff) == (r_buf & 0xff))) { l_buf >>= 8; r_buf >>= 8; }
     return ((int) (l_buf & 0xff)) - ((int) (r_buf & 0xff));
   }
 
@@ -130,7 +130,7 @@ int strncmp (const char * sl, const char * sr, size_t n) {
 
     while (n && (l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; n--; }
     if (!n) return 0;
-    return ((int) (l_buf3 & 0xff)) - ((int) (r_buf & 0xff));
+    return ((int) (l_buf & 0xff)) - ((int) (r_buf & 0xff));
   }
 
   if (neq_flag) {

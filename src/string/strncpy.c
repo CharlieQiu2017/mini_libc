@@ -17,11 +17,11 @@ static size_t strncpy_internal (char * restrict d, const char * restrict s, size
 
   if (d_off == 0) {
     /* 2. Read 8 bytes of s at once and write to d */
-    uint64_t s_buf, end_flag = 0;
+    uint64_t s_buf;
 
     while (n >= 8) {
       s_buf = * ((const uint64_t *) s);
-      if (HASZERO (s_buf)) { end_flag = 1; break; }
+      if (HASZERO (s_buf)) break;
       * ((uint64_t *) d) = s_buf;
       s += 8; d += 8; n -= 8;
     }
@@ -34,17 +34,14 @@ static size_t strncpy_internal (char * restrict d, const char * restrict s, size
       return d - orig_d;
     }
 
-    if (end_flag) {
-      while (s_buf & 0xff) { *d = s_buf & 0xff; s_buf >>= 8; d++; }
-      return d - orig_d;
-    }
+    /* If this line is reached, s_buf contains NUL byte */
 
-    /* Should not reach here */
-    return 0;
+    while (s_buf & 0xff) { *d = s_buf & 0xff; s_buf >>= 8; d++; }
+    return d - orig_d;
   }
 
   /* 2. Read 8 bytes of s */
-  uint64_t s_buf1 = * ((const uint64_t *) s), s_buf2, s_buf3, end_flag = 0;
+  uint64_t s_buf1 = * ((const uint64_t *) s), s_buf2, s_buf3;
 
   /* 3. Write (8 - d_off) bytes to d, so that d is now aligned */
 
@@ -61,7 +58,7 @@ static size_t strncpy_internal (char * restrict d, const char * restrict s, size
     s += 8;
     s_buf2 = * ((const uint64_t *) s);
     s_buf3 = s_buf1 | (s_buf2 << (8 * d_off));
-    if (HASZERO (s_buf2)) { end_flag = 1; break; }
+    if (HASZERO (s_buf2)) break;
 
     * ((uint64_t *) d) = s_buf3;
     s_buf1 = s_buf2 >> (8 * (8 - d_off));
@@ -82,20 +79,15 @@ static size_t strncpy_internal (char * restrict d, const char * restrict s, size
     return d - orig_d;
   }
 
-  if (end_flag) {
-    i = 8;
-    while (i && (s_buf3 & 0xff)) { *d = s_buf3 & 0xff; s_buf3 >>= 8; d++; i--; }
-    if (i) return d - orig_d;
+  i = 8;
+  while (i && (s_buf3 & 0xff)) { *d = s_buf3 & 0xff; s_buf3 >>= 8; d++; i--; }
+  if (i) return d - orig_d;
 
-    s_buf1 = s_buf2 >> (8 * (8 - d_off));
-    n -= 8;
+  s_buf1 = s_buf2 >> (8 * (8 - d_off));
+  n -= 8;
 
-    while (n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
-    return d - orig_d;
-  }
-
-  /* Should not reach here */
-  return 0;
+  while (n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
+  return d - orig_d;
 }
 
 char * strncpy (char * restrict d, const char * restrict s, size_t n) {

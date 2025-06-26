@@ -15,11 +15,11 @@ size_t strnlen (const char * s, size_t n) {
   if (!n) return s - orig_s;
 
   /* 3. Repeat read 8 bytes of s and check for NUL */
-  uint64_t buf, s_end_flag = 0;
+  uint64_t buf;
 
   while (n >= 8) {
     buf = * ((uint64_t *) s);
-    if (HASZERO (buf)) { s_end_flag = 1; break; }
+    if (HASZERO (buf)) break;
     s += 8;
     n -= 8;
   }
@@ -34,11 +34,8 @@ size_t strnlen (const char * s, size_t n) {
     return s - orig_s;
   }
 
-  if (s_end_flag) {
-    while (buf & 0xff) { buf >>= 8; s++; }
-    return s - orig_s;
-  }
+  /* If this line is reached, buf contains NUL */
 
-  /* Should not reach here */
-  return 0;
+  while (buf & 0xff) { buf >>= 8; s++; }
+  return s - orig_s;
 }

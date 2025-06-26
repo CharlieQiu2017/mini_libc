@@ -2,6 +2,8 @@
    Derived from musl-libc src/string/memcmp.c
  */
 
+/* Surprise! On aarch64 platforms "char" is "unsigned char"! */
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -15,7 +17,7 @@ int memcmp (const void * vl, const void * vr, size_t n) {
   if (!n) return 0;
   if (*l != *r) return ((int) *l) - ((int) *r);
 
-  uint64_t l_buf, l_buf2, l_buf3, r_buf, neq_flag = 0;
+  uint64_t l_buf, l_buf2, l_buf3, r_buf;
 
   /* 2. If R is also aligned, compare 8 bytes of L, R at a time */
 
@@ -66,7 +68,7 @@ int memcmp (const void * vl, const void * vr, size_t n) {
     r_buf = * ((const uint64_t *) r);
     l_buf3 = l_buf | (l_buf2 << (8 * r_off));
 
-    if (l_buf3 != r_buf) { neq_flag = 1; break; }
+    if (l_buf3 != r_buf) break;
 
     l_buf = l_buf2 >> (8 * (8 - r_off));
     l += 8;
@@ -79,24 +81,16 @@ int memcmp (const void * vl, const void * vr, size_t n) {
   /* 5. Compare final bytes */
 
   if (n < 8) {
-    i = r_off;
+    if (n <= r_off) l_buf2 = 0; else l_buf2 = * ((const uint64_t *) l);
     r_buf = * ((const uint64_t *) r);
+    l_buf3 = l_buf | (l_buf2 << (8 * r_off));
 
-    while (i && n && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; i--; n--; }
+    while (n && (l_buf3 & 0xff) == (r_buf & 0xff)) { l_buf3 >>= 8; r_buf >>= 8; n--; }
+
     if (!n) return 0;
-    if (i) return ((int) (l_buf & 0xff)) - ((int) (r_buf & 0xff));
-
-    l_buf = * ((const uint64_t *) l);
-    while (n && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; n--; }
-    if (!n) return 0;
-    return ((int) (l_buf & 0xff)) - ((int) (r_buf & 0xff));
-  }
-
-  if (neq_flag) {
-    while ((l_buf3 & 0xff) == (r_buf & 0xff)) { l_buf3 >>= 8; r_buf >>= 8; }
     return ((int) (l_buf3 & 0xff)) - ((int) (r_buf & 0xff));
   }
 
-  /* Should not reach here */
-  return 0;
+  while ((l_buf3 & 0xff) == (r_buf & 0xff)) { l_buf3 >>= 8; r_buf >>= 8; }
+  return ((int) (l_buf3 & 0xff)) - ((int) (r_buf & 0xff));
 }

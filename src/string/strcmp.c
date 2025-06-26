@@ -1,6 +1,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Surprise! On aarch64 platforms "char" is "unsigned char"! */
+
 /* See strlen.c */
 #define ONES ((size_t) -1 / 255) /* 0x0101010101010101 */
 #define HIGHS (ONES * 128) /* 0x8080808080808080 */
@@ -38,7 +40,7 @@ int strcmp (const char * sl, const char * sr) {
 
   /* 3. Compare the next (8 - r_off) bytes */
 
-  uint32_t l_end_flag = HASZERO (l_buf), neq_flag = 0;
+  uint32_t l_end_flag = HASZERO (l_buf) != 0, neq_flag = 0;
 
   uint32_t i = 8 - r_off;
   while (i && (l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; i--; }
@@ -78,7 +80,7 @@ int strcmp (const char * sl, const char * sr) {
     r_buf = * ((const uint64_t *) r);
 
     while ((l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; }
-    return ((int) (l_buf3 & 0xff)) - ((int) (r_buf & 0xff));
+    return ((int) (l_buf & 0xff)) - ((int) (r_buf & 0xff));
   }
 
   if (neq_flag) {

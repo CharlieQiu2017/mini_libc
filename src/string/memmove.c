@@ -49,10 +49,10 @@ void * memmove (void * dest, const void * src, size_t n) {
     s_buf = * ((const uint64_t *) s);
 
     uint32_t i = 8 - d_off;
-    while (i) { *d = s_buf & 0xff; s_buf >>= 8; d++; i--; }
+    while (i && n) { *d = s_buf & 0xff; s_buf >>= 8; d++; i--; n--; }
+    if (!n) return dest;
 
     s += 8;
-    n -= (8 - d_off);
 
     /* 4. Repeat copy 8 bytes to d at once */
     while (n >= 8) {
@@ -106,9 +106,8 @@ void * memmove (void * dest, const void * src, size_t n) {
     s_buf = * ((const uint64_t *) s);
 
     uint32_t i = d_off;
-    while (i) { d--; *d = s_buf & (0xffull << 56); s_buf <<= 8; i--; }
-
-    n -= d_off;
+    while (i && n) { d--; *d = (s_buf >> 56); s_buf <<= 8; i--; n--; }
+    if (!n) return dest;
 
     while (n >= 8) {
       s -= 8;
@@ -127,7 +126,7 @@ void * memmove (void * dest, const void * src, size_t n) {
     if (n <= 8 - d_off) s_buf2 = 0; else s_buf2 = * ((const uint64_t *) s);
     s_buf = s_buf | (s_buf2 >> (8 * (8 - d_off)));
 
-    while (n) { d--; *d = s_buf & (0xffull << 56); s_buf <<= 8; n--; }
+    while (n) { d--; *d = (s_buf >> 56); s_buf <<= 8; n--; }
     return dest;
 
   }
