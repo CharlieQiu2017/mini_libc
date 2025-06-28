@@ -21,21 +21,19 @@ static size_t strncpy_internal (char * restrict d, const char * restrict s, size
 
     while (n >= 8) {
       s_buf = * ((const uint64_t *) s);
-      if (HASZERO (s_buf)) break;
+      if (HASZERO (s_buf)) goto aligned_s_end_flag;
       * ((uint64_t *) d) = s_buf;
       s += 8; d += 8; n -= 8;
     }
 
     if (!n) return d - orig_d;
 
-    if (n < 8) {
-      s_buf = * ((const uint64_t *) s);
-      while (n && (s_buf & 0xff)) { *d = s_buf & 0xff; s_buf >>= 8; d++; n--; }
-      return d - orig_d;
-    }
+    s_buf = * ((const uint64_t *) s);
+    while (n && (s_buf & 0xff)) { *d = s_buf & 0xff; s_buf >>= 8; d++; n--; }
+    return d - orig_d;
 
+aligned_s_end_flag:
     /* If this line is reached, s_buf contains NUL byte */
-
     while (s_buf & 0xff) { *d = s_buf & 0xff; s_buf >>= 8; d++; }
     return d - orig_d;
   }
@@ -58,7 +56,7 @@ static size_t strncpy_internal (char * restrict d, const char * restrict s, size
     s += 8;
     s_buf2 = * ((const uint64_t *) s);
     s_buf3 = s_buf1 | (s_buf2 << (8 * d_off));
-    if (HASZERO (s_buf2)) break;
+    if (HASZERO (s_buf2)) goto s_end_flag;
 
     * ((uint64_t *) d) = s_buf3;
     s_buf1 = s_buf2 >> (8 * (8 - d_off));
@@ -69,16 +67,15 @@ static size_t strncpy_internal (char * restrict d, const char * restrict s, size
 
   /* 5. Finish final bytes */
 
-  if (n < 8) {
-    i = d_off;
-    while (i && n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; i--; n--; }
-    if (i || !n) return d - orig_d;
+  i = d_off;
+  while (i && n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; i--; n--; }
+  if (i || !n) return d - orig_d;
 
-    s += 8; s_buf1 = * ((const uint64_t *) s);
-    while (n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
-    return d - orig_d;
-  }
+  s += 8; s_buf1 = * ((const uint64_t *) s);
+  while (n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
+  return d - orig_d;
 
+s_end_flag:
   i = 8;
   while (i && (s_buf3 & 0xff)) { *d = s_buf3 & 0xff; s_buf3 >>= 8; d++; i--; }
   if (i) return d - orig_d;

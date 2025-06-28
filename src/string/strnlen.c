@@ -19,7 +19,7 @@ size_t strnlen (const char * s, size_t n) {
 
   while (n >= 8) {
     buf = * ((uint64_t *) s);
-    if (HASZERO (buf)) break;
+    if (HASZERO (buf)) goto s_end_flag;
     s += 8;
     n -= 8;
   }
@@ -28,14 +28,12 @@ size_t strnlen (const char * s, size_t n) {
 
   if (!n) return s - orig_s;
 
-  if (n < 8) {
-    buf = * ((uint64_t *) s);
-    while (n && (buf & 0xff)) { buf >>= 8; s++; n--; }
-    return s - orig_s;
-  }
+  buf = * ((uint64_t *) s);
+  while (n && (buf & 0xff)) { buf >>= 8; s++; n--; }
+  return s - orig_s;
 
+s_end_flag:
   /* If this line is reached, buf contains NUL */
-
   while (buf & 0xff) { buf >>= 8; s++; }
   return s - orig_s;
 }

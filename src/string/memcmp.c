@@ -7,7 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int memcmp (const void * vl, const void * vr, size_t n) {
+int32_t memcmp (const void * vl, const void * vr, size_t n) {
   const unsigned char * l = (const unsigned char *) vl;
   const unsigned char * r = (const unsigned char *) vr;
 
@@ -15,7 +15,7 @@ int memcmp (const void * vl, const void * vr, size_t n) {
 
   while (n && ((uintptr_t) l & 7) && *l == *r) { l++; r++; n--; }
   if (!n) return 0;
-  if (*l != *r) return ((int) *l) - ((int) *r);
+  if (*l != *r) return ((int32_t) *l) - ((int32_t) *r);
 
   uint64_t l_buf, l_buf2, l_buf3, r_buf;
 
@@ -28,7 +28,7 @@ int memcmp (const void * vl, const void * vr, size_t n) {
 
       if (l_buf != r_buf) {
 	while ((l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; }
-	return ((int) (l_buf & 0xff)) - ((int) (r_buf & 0xff));
+	return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
       }
 
       l += 8; r += 8; n -= 8;
@@ -43,7 +43,7 @@ int memcmp (const void * vl, const void * vr, size_t n) {
 
     if (!n) return 0;
 
-    return ((int) (l_buf & 0xff)) - ((int) (r_buf & 0xff));
+    return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
   }
 
   uint32_t r_off = (uintptr_t) r & 7;
@@ -56,7 +56,7 @@ int memcmp (const void * vl, const void * vr, size_t n) {
   uint32_t i = 8 - r_off;
   while (i && n && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; i--; n--; }
   if (!n) return 0;
-  if (i) return ((int) (l_buf & 0xff)) - ((int) (r_buf & 0xff));
+  if (i) return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
 
   l += 8;
   r += (8 - r_off);
@@ -68,7 +68,7 @@ int memcmp (const void * vl, const void * vr, size_t n) {
     r_buf = * ((const uint64_t *) r);
     l_buf3 = l_buf | (l_buf2 << (8 * r_off));
 
-    if (l_buf3 != r_buf) break;
+    if (l_buf3 != r_buf) goto neq_flag;
 
     l_buf = l_buf2 >> (8 * (8 - r_off));
     l += 8;
@@ -80,17 +80,16 @@ int memcmp (const void * vl, const void * vr, size_t n) {
 
   /* 5. Compare final bytes */
 
-  if (n < 8) {
-    if (n <= r_off) l_buf2 = 0; else l_buf2 = * ((const uint64_t *) l);
-    r_buf = * ((const uint64_t *) r);
-    l_buf3 = l_buf | (l_buf2 << (8 * r_off));
+  if (n <= r_off) l_buf2 = 0; else l_buf2 = * ((const uint64_t *) l);
+  r_buf = * ((const uint64_t *) r);
+  l_buf3 = l_buf | (l_buf2 << (8 * r_off));
 
-    while (n && (l_buf3 & 0xff) == (r_buf & 0xff)) { l_buf3 >>= 8; r_buf >>= 8; n--; }
+  while (n && (l_buf3 & 0xff) == (r_buf & 0xff)) { l_buf3 >>= 8; r_buf >>= 8; n--; }
 
-    if (!n) return 0;
-    return ((int) (l_buf3 & 0xff)) - ((int) (r_buf & 0xff));
-  }
+  if (!n) return 0;
+  return ((int32_t) (l_buf3 & 0xff)) - ((int32_t) (r_buf & 0xff));
 
+neq_flag:
   while ((l_buf3 & 0xff) == (r_buf & 0xff)) { l_buf3 >>= 8; r_buf >>= 8; }
-  return ((int) (l_buf3 & 0xff)) - ((int) (r_buf & 0xff));
+  return ((int32_t) (l_buf3 & 0xff)) - ((int32_t) (r_buf & 0xff));
 }
