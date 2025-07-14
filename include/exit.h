@@ -9,9 +9,9 @@ extern "C" {
    while exit_group () exits the entire process
  */
 
-void exit (int status);
+__attribute__((noreturn)) void exit (int status);
 
-void exit_group (int status);
+__attribute__((noreturn)) void exit_group (int status);
 
 #ifdef __cplusplus
 }
