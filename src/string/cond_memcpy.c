@@ -58,7 +58,7 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
   d_buf = (s_buf & mask_src_long) | (d_buf & mask_dst_long);
 
   uint32_t i = 8 - d_off;
-  while (i && n) { *d = d_buf & 0xff; d_buf >>= 8; i--; n--; }
+  while (i && n) { *d = d_buf & 0xff; d_buf >>= 8; d++; i--; n--; }
   if (!n) return;
   s_buf >>= 8 * (8 - d_off);
 
