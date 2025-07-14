@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,17 +25,11 @@ void keccak_p_1600_6_permute (uint64_t * state);
 
 /* Since we assume little-endian architecture, simply treat state as a sequence of bytes */
 static inline __attribute__((always_inline)) void keccak_p_1600_extract_bytes (const uint64_t * state, unsigned char * data, uint32_t offset, uint32_t length) {
-  const unsigned char * state_bytes = (const unsigned char *) state;
-  for (uint32_t i = 0; i < length; ++i) {
-    data[i] = state_bytes[offset + i];
-  }
+  memcpy (data, ((unsigned char *) state) + offset, length);
 }
 
 static inline __attribute__((always_inline)) void keccak_p_1600_xor_bytes (uint64_t * state, const unsigned char * data, uint32_t offset, uint32_t length) {
-  unsigned char * state_bytes = (unsigned char *) state;
-  for (uint32_t i = 0; i < length; ++i) {
-    state_bytes[offset + i] ^= data[i];
-  }
+  memxor (((unsigned char *) state) + offset, data, length);
 }
 
 /* The "mid-level" functions
