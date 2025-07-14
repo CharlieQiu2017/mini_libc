@@ -8,6 +8,7 @@
 #define NTRU_LPR_P 653
 #define NTRU_LPR_Q 4621
 #define NTRU_LPR_W 252
+#define NTRU_LPR_SHORT_ENC_LEN ((NTRU_LPR_P - 1) / 4 + 1)
 
 /* Barrett reduction requires a good approximation of 1/Q, in the form of m/2^k.
    The maximum number we have to reduce against Q = 4621 is 2^32 - 1.
@@ -278,7 +279,7 @@ void ntrulpr_653_hashshort (const unsigned char * input, uint8_t * out) {
   ntrulpr_653_safesort (poly);
 
   /* Reduce each integer modulo 4 */
-  memset (out, 0, ((NTRU_LPR_P - 1) / 4) + 1);
+  memset (out, 0, NTRU_LPR_SHORT_ENC_LEN);
 
   for (uint32_t i = 0; i < NTRU_LPR_P; ++i) {
     uint32_t coeff = poly[i] & 0x03;

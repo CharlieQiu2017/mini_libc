@@ -9,6 +9,9 @@
 #define NTRU_LPR_P 653
 #define NTRU_LPR_Q 4621
 #define NTRU_LPR_ROUND_ENC_LEN 865
+#define NTRU_LPR_SHORT_ENC_LEN ((NTRU_LPR_P - 1) / 4 + 1)
+#define NTRU_LPR_PK_LEN (32 + NTRU_LPR_ROUND_ENC_LEN)
+#define NTRU_LPR_CT_LEN (NTRU_LPR_ROUND_ENC_LEN + 128 + 32)
 
 void ntrulpr_653_encapsulate_internal (const unsigned char * pk, const unsigned char * input, const unsigned char * key_hash_cache, unsigned char * ct_out) {
   /* Expand G */
@@ -20,7 +23,7 @@ void ntrulpr_653_encapsulate_internal (const unsigned char * pk, const unsigned 
   ntrulpr_653_decode_poly_round (pk + 32, ag_round);
 
   /* Call HashShort to generate b */
-  uint8_t b[(NTRU_LPR_P - 1) / 4 + 1];
+  uint8_t b[NTRU_LPR_SHORT_ENC_LEN];
   ntrulpr_653_hashshort (input, b);
 
   /* Compute Round(bG) */
@@ -70,7 +73,7 @@ void ntrulpr_653_encapsulate_internal (const unsigned char * pk, const unsigned 
 
   if (key_hash_cache == NULL) {
     sponge_keccak_1600_absorb (state, &curr_offset, &init_byte, 1, 72);
-    sponge_keccak_1600_absorb (state, &curr_offset, pk, 32 + NTRU_LPR_ROUND_ENC_LEN, 72);
+    sponge_keccak_1600_absorb (state, &curr_offset, pk, NTRU_LPR_PK_LEN, 72);
     sponge_keccak_1600_finalize (state, curr_offset, 2 + 4, 72);
     curr_offset = 0;
     sponge_keccak_1600_squeeze (state, &curr_offset, key_hash, 32, 72);
@@ -103,7 +106,7 @@ void ntrulpr_653_encapsulate (const unsigned char * pk, unsigned char * ct_out, 
   uint8_t init_byte = 1;
   sponge_keccak_1600_absorb (state, &curr_offset, &init_byte, 1, 72);
   sponge_keccak_1600_absorb (state, &curr_offset, input, 32, 72);
-  sponge_keccak_1600_absorb (state, &curr_offset, ct_out, NTRU_LPR_ROUND_ENC_LEN + 128 + 32, 72);
+  sponge_keccak_1600_absorb (state, &curr_offset, ct_out, NTRU_LPR_CT_LEN, 72);
   sponge_keccak_1600_finalize (state, curr_offset, 2 + 4, 72);
   curr_offset = 0;
   sponge_keccak_1600_squeeze (state, &curr_offset, key_out, 32, 72);

@@ -11,6 +11,9 @@
 #define NTRU_LPR_T2 2031
 #define NTRU_LPR_T3 290
 #define NTRU_LPR_ROUND_ENC_LEN 865
+#define NTRU_LPR_SHORT_ENC_LEN ((NTRU_LPR_P - 1) / 4 + 1)
+#define NTRU_LPR_PK_LEN (32 + NTRU_LPR_ROUND_ENC_LEN)
+#define NTRU_LPR_CT_LEN (NTRU_LPR_ROUND_ENC_LEN + 128 + 32)
 
 void ntrulpr_653_decapsulate (const unsigned char * sk, const unsigned char * ct, unsigned char * key_out) {
   /* Decode B = Round(bG) */
@@ -45,17 +48,17 @@ void ntrulpr_653_decapsulate (const unsigned char * sk, const unsigned char * ct
 
   /* Encapsulate again and compare the ciphertext */
   unsigned char new_ct[NTRU_LPR_ROUND_ENC_LEN + 128 + 32];
-  ntrulpr_653_encapsulate_internal (sk + (NTRU_LPR_P - 1) / 4 + 1, secret, sk + (NTRU_LPR_P - 1) / 4 + 1 + NTRU_LPR_ROUND_ENC_LEN + 32 + 32, new_ct);
-  uint64_t cmp = safe_memcmp (ct, new_ct, NTRU_LPR_ROUND_ENC_LEN + 128 + 32);
+  ntrulpr_653_encapsulate_internal (sk + NTRU_LPR_SHORT_ENC_LEN, secret, sk + NTRU_LPR_SHORT_ENC_LEN + NTRU_LPR_PK_LEN + 32, new_ct);
+  uint64_t cmp = safe_memcmp (ct, new_ct, NTRU_LPR_CT_LEN);
   uint8_t cmp_byte = (uint8_t) uint64_cmp_ge_branch (cmp, 1, 0, 1);
-  cond_memcpy (1 - cmp_byte, secret, sk + (NTRU_LPR_P - 1) / 4 + 1 + NTRU_LPR_ROUND_ENC_LEN + 32, 32);
+  cond_memcpy (1 - cmp_byte, secret, sk + NTRU_LPR_SHORT_ENC_LEN + NTRU_LPR_PK_LEN, 32);
 
   /* Compute HashSession */
   uint64_t state[25] = {0};
   uint32_t curr_offset = 0;
   sponge_keccak_1600_absorb (state, &curr_offset, &cmp_byte, 1, 72);
   sponge_keccak_1600_absorb (state, &curr_offset, secret, 32, 72);
-  sponge_keccak_1600_absorb (state, &curr_offset, ct, NTRU_LPR_ROUND_ENC_LEN + 128 + 32, 72);
+  sponge_keccak_1600_absorb (state, &curr_offset, ct, NTRU_LPR_CT_LEN, 72);
   sponge_keccak_1600_finalize (state, curr_offset, 2 + 4, 72);
   curr_offset = 0;
   sponge_keccak_1600_squeeze (state, &curr_offset, key_out, 32, 72);
