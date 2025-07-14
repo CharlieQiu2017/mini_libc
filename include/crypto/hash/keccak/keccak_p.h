@@ -13,36 +13,12 @@ extern "C" {
  */
 
 /* Keccak-p with the default number of rounds.
-   Keccak-p[200] has 18 rounds,
    Keccak-p[1600] has 24 rounds.
  */
 
-void keccak_p_200_permute (uint8_t * state);
-void keccak_p_400_permute (uint16_t * state);
-void keccak_p_800_permute (uint32_t * state);
 void keccak_p_1600_permute (uint64_t * state);
 
-/* Ketje uses "twisted" Keccak-p permutations */
-
-void keccak_p_200_1_twisted_permute (uint8_t * state);
-void keccak_p_200_6_twisted_permute (uint8_t * state);
-void keccak_p_200_12_twisted_permute (uint8_t * state);
-void keccak_p_400_1_twisted_permute (uint16_t * state);
-void keccak_p_400_6_twisted_permute (uint16_t * state);
-void keccak_p_400_12_twisted_permute (uint16_t * state);
-void keccak_p_800_1_twisted_permute (uint32_t * state);
-void keccak_p_800_6_twisted_permute (uint32_t * state);
-void keccak_p_800_12_twisted_permute (uint32_t * state);
-void keccak_p_1600_1_twisted_permute (uint64_t * state);
-void keccak_p_1600_6_twisted_permute (uint64_t * state);
-void keccak_p_1600_12_twisted_permute (uint64_t * state);
-
-/* Keyak, KangarooTwelve, TurboSHAKE use Keccak-p with reduced rounds */
-
-void keccak_p_800_12_permute (uint32_t * state);
-void keccak_p_1600_12_permute (uint64_t * state);
-
-/* Kravatte uses Keccak-p with further reduced rounds */
+/* Kravatte uses Keccak-p with reduced rounds */
 
 void keccak_p_1600_6_permute (uint64_t * state);
 

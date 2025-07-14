@@ -2,18 +2,12 @@
 /* Keccak-p permutations.
    Adapted from mupq/common/keccakf1600.c
  */
-'
 
-`
 #include <stdint.h>
 #include <crypto/hash/keccak/keccak_p.h>
-'
 
-`
 #define ROL(T, a, offset) (((a) << ((offset) % (8 * sizeof (T)))) ^ ((a) >> (8 * sizeof (T) - ((offset) % (8 * sizeof (T))))))
-'
 
-`
 static const uint64_t keccak_p_rc[24] = {
   (uint64_t) 0x0000000000000001ull,
   (uint64_t) 0x0000000000008082ull,
@@ -40,17 +34,18 @@ static const uint64_t keccak_p_rc[24] = {
   (uint64_t) 0x0000000080000001ull,
   (uint64_t) 0x8000000080008008ull
 };
-'
 
-`
-/* Code for different versions of Keccak-p[b, n_r] are almost the same except the types used for the lanes and the round number.
-   Therefore, we define a macro that expands to the correct function body.
-   State of Keccak is a bit-array A[x, y, z], with 0 <= x < 5, 0 <= y < 5, 0 <= z < lane_size (8, 16, 32, 64 depending on permutation).
+/* State of Keccak is a bit-array A[x, y, z], with 0 <= x < 5, 0 <= y < 5, 0 <= z < lane_size (always 64 in NIST approved modes).
    In this implementation, A[x, y, z] = state[x + 5 * y] & (1ull << z).
  */
 '
 
-define(`BODY',`
+define(`INST',`
+#define T $2
+#define NROUND $3
+#define STROUND $4
+
+void $1 ($2 * state) {
   T Aba, Abe, Abi, Abo, Abu;
   T Aga, Age, Agi, Ago, Agu;
   T Aka, Ake, Aki, Ako, Aku;
@@ -434,35 +429,12 @@ define(`BODY',`
     state[23] = Aso;
     state[24] = Asu;
   }
+}
+
+#undef T
+#undef NROUND
+#undef STROUND
 ')dnl
 
-define(`INST',`
-void keccak_p_$1_permute ($2 * state) {
-#define T $2
-#define NROUND $3
-#define STROUND 0
-BODY
-#undef T
-#undef NROUND
-#undef STROUND
-}')dnl
-
-INST(200, uint8_t, 18)
-INST(400, uint16_t, 20)
-INST(800, uint32_t, 22)
-INST(1600, uint64_t, 24)
-
-define(`INST_EXT',`
-void keccak_p_$1_$3_permute ($2 * state) {
-#define T $2
-#define NROUND $3
-#define STROUND $4
-BODY
-#undef T
-#undef NROUND
-#undef STROUND
-}')dnl
-
-INST_EXT(800, uint32_t, 12, 10)
-INST_EXT(1600, uint64_t, 12, 12)
-INST_EXT(1600, uint64_t, 6, 18)
+INST(keccak_p_1600_permute, uint64_t, 24, 0)
+INST(keccak_p_1600_6_permute, uint64_t, 6, 18)
