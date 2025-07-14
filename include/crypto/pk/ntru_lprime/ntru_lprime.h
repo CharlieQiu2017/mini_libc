@@ -110,6 +110,10 @@
    Together with the 32 bytes for the seed S, we get the total length of the public key which is 897 bytes.
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void ntrulpr_653_encode_poly_round (const uint16_t * poly, unsigned char * enc_out);
 
 void ntrulpr_653_decode_poly_round (const unsigned char * enc, uint16_t * poly);
@@ -131,5 +135,9 @@ void ntrulpr_653_encapsulate_internal (const unsigned char * pk, const unsigned 
 void ntrulpr_653_encapsulate (const unsigned char * pk, unsigned char * ct_out, unsigned char * key_out);
 
 void ntrulpr_653_decapsulate (const unsigned char * sk, const unsigned char * ct, unsigned char * key_out);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
