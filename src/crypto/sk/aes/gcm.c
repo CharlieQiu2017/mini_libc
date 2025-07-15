@@ -192,3 +192,115 @@ void aes128_encrypt_gcm (const unsigned char * exkey, const unsigned char * iv, 
 
   return;
 }
+
+void aes128_decrypt_gcm (const unsigned char * exkey, const unsigned char * iv, const unsigned char * add_data, size_t add_data_len, const unsigned char * ct, size_t ct_len, unsigned char * data_out, unsigned char * tag_out) {
+  /* Compute the H value */
+  uint32_t h_block[4] = {0};
+  uint32_t h[4];
+  aes128_encrypt_one_block (exkey, (unsigned char *) h_block, (unsigned char *) h);
+
+  /* Reverse the bits of H */
+  uint32x4_t h_rev = vld1q_u32 (h);
+  h_rev = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (h_rev)));
+
+  /* Prepare J0 block */
+  uint32_t j0[4];
+  memcpy (j0, iv, 12);
+  j0[3] = 1u << 24;
+
+  /* Encrypt J0 */
+  uint32_t j0_enc[4];
+  aes128_encrypt_one_block (exkey, (unsigned char *) j0, (unsigned char *) j0_enc);
+
+  /* Length in bits */
+  size_t add_data_len_orig = __builtin_bswap64 (add_data_len * 8), data_len_orig = __builtin_bswap64 (ct_len * 8);
+
+  uint32x4_t ghash = vdupq_n_u32 (0);
+
+  /* Process whole blocks of additional data */
+  while (add_data_len >= 16) {
+    /* Load a complete block, reverse its bits, and add to ghash */
+    uint32x4_t add_data_block = vreinterpretq_u32_u8 (vld1q_u8 ((const uint8_t *) add_data));
+    add_data_block = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (add_data_block)));
+    ghash = veorq_u32 (ghash, add_data_block);
+
+    /* Multiply by H */
+    ghash = gcm_mult (ghash, h_rev);
+
+    add_data_len -= 16; add_data += 16;
+  }
+
+  /* Final bytes of additional data */
+  if (add_data_len > 0) {
+    uint8_t final_add_data[16] = {0};
+    memcpy (final_add_data, add_data, add_data_len);
+
+    uint32x4_t add_data_block = vreinterpretq_u32_u8 (vld1q_u8 (final_add_data));
+    add_data_block = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (add_data_block)));
+    ghash = veorq_u32 (ghash, add_data_block);
+    ghash = gcm_mult (ghash, h_rev);
+  }
+
+  /* Decrypt whole blocks of data */
+  while (ct_len >= 16) {
+    /* Add ct to ghash first */
+    uint32x4_t ct_block = vreinterpretq_u32_u8 (vld1q_u8 (ct));
+    uint32x4_t ct_block_rev = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (ct_block)));
+    ghash = veorq_u32 (ghash, ct_block_rev);
+    ghash = gcm_mult (ghash, h_rev);
+
+    /* Increment the counter */
+    gcm_inc_ctr (j0);
+
+    /* Encrypt the counter */
+    uint32_t ctr_enc[4];
+    aes128_encrypt_one_block (exkey, (unsigned char *) j0, (unsigned char *) ctr_enc);
+
+    /* XOR encrypted counter and ct to get plaintext */
+    uint32x4_t ctr_enc_block = vld1q_u32 (ctr_enc);
+    ctr_enc_block = veorq_u32 (ctr_enc_block, ct_block);
+    vst1q_u8 (data_out, vreinterpretq_u8_u32 (ctr_enc_block));
+    data_out += 16;
+
+    ct_len -= 16; ct += 16;
+  }
+
+  /* Final bytes of data */
+  if (ct_len > 0) {
+    uint8_t final_ct[16] = {0};
+    memcpy (final_ct, ct, ct_len);
+
+    uint32x4_t ct_block = vreinterpretq_u32_u8 (vld1q_u8 (final_ct));
+    uint32x4_t ct_block_rev = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (ct_block)));
+    ghash = veorq_u32 (ghash, ct_block_rev);
+    ghash = gcm_mult (ghash, h_rev);
+
+    gcm_inc_ctr (j0);
+
+    uint32_t ctr_enc[4];
+    aes128_encrypt_one_block (exkey, (unsigned char *) j0, (unsigned char *) ctr_enc);
+
+    memxor (final_ct, ctr_enc, ct_len);
+    memcpy (data_out, final_ct, ct_len);
+  }
+
+  /* Final block: len(A) || len(C) */
+  uint64x2_t final_block = vdupq_n_u64 (add_data_len_orig);
+  final_block = vsetq_lane_u64 (data_len_orig, final_block, 1);
+  uint32x4_t final_block_u32 = vreinterpretq_u32_u64 (final_block);
+
+  final_block_u32 = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (final_block_u32)));
+  ghash = veorq_u32 (ghash, final_block_u32);
+  ghash = gcm_mult (ghash, h_rev);
+
+  /* Reverse bits of ghash */
+  ghash = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (ghash)));
+
+  /* XOR with j0_enc */
+  uint32x4_t j0_enc_block = vld1q_u32 (j0_enc);
+  ghash = veorq_u32 (ghash, j0_enc_block);
+
+  vst1q_u8 (tag_out, vreinterpretq_u8_u32 (ghash));
+
+  return;
+}

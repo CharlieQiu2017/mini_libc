@@ -16,6 +16,7 @@ void aes256_encrypt_one_block (const unsigned char * exkey, const unsigned char 
 void aes256_decrypt_one_block (const unsigned char * exkey, const unsigned char * ct, unsigned char * data_out);
 
 void aes128_encrypt_gcm (const unsigned char * exkey, const unsigned char * iv, const unsigned char * add_data, size_t add_data_len, const unsigned char * data, size_t data_len, unsigned char * ct_out, unsigned char * tag_out);
+void aes128_decrypt_gcm (const unsigned char * exkey, const unsigned char * iv, const unsigned char * add_data, size_t add_data_len, const unsigned char * ct, size_t ct_len, unsigned char * data_out, unsigned char * tag_out);
 
 #ifdef __cplusplus
 }
