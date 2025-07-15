@@ -5,7 +5,10 @@
 #include <crypto/sk/farfalle/farfalle.h>
 '
 
-define(`INIT_BODY',`
+define(`INIT_FUNC',`
+#define FARFALLE_K_LEN $2
+
+void farfalle_$1_$2_init (struct farfalle_$1_state * st, const unsigned char * k) {
   unsigned char * k_ptr = (unsigned char *) st->k;
 
   for (uint32_t i = 0; i < FARFALLE_K_LEN; ++i) {
@@ -27,28 +30,19 @@ define(`INIT_BODY',`
   for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
     st->sum[i] = 0;
   }
+}
+
+#undef FARFALLE_K_LEN
 ')dnl
 
 define(`INST',`
 #include <crypto/sk/farfalle/params/$1.h>
 
-void farfalle_$1_16_init (struct farfalle_$1_state * st, const unsigned char * k) {
-#define FARFALLE_K_LEN 16
-INIT_BODY
-#undef FARFALLE_K_LEN
-}
+INIT_FUNC($1,16)
 
-void farfalle_$1_24_init (struct farfalle_$1_state * st, const unsigned char * k) {
-#define FARFALLE_K_LEN 24
-INIT_BODY
-#undef FARFALLE_K_LEN
-}
+INIT_FUNC($1,24)
 
-void farfalle_$1_32_init (struct farfalle_$1_state * st, const unsigned char * k) {
-#define FARFALLE_K_LEN 32
-INIT_BODY
-#undef FARFALLE_K_LEN
-}
+INIT_FUNC($1,32)
 
 void farfalle_$1_reset (struct farfalle_$1_state * st) {
   for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {

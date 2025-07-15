@@ -4,7 +4,10 @@
 `#include <crypto/sk/farfalle/farfalle.h>'
 `#include <crypto/sk/farfalle/farfalle_helper.h>'
 
-define(`ADD_STRING_PART_BODY',`
+define(`INST',`
+#include <crypto/sk/farfalle/params/$1.h>
+
+void farfalle_$1_add_string_part (struct farfalle_$1_state * st, struct farfalle_$1_helper_state * hst, const unsigned char * str, size_t str_len) {
   uint32_t off = hst->offset_ctr;
   unsigned char * k_ptr = (unsigned char *) st->k;
   unsigned char * p_ptr = (unsigned char *) hst->p;
@@ -54,9 +57,9 @@ define(`ADD_STRING_PART_BODY',`
 
     hst->offset_ctr = str_len;
   }
-')dnl
+}
 
-define(`FINALIZE_BODY',`
+void farfalle_$1_finalize_string (struct farfalle_$1_state * st, struct farfalle_$1_helper_state * hst) {
   uint32_t off = hst->offset_ctr;
   unsigned char * k_ptr = (unsigned char *) st->k;
   unsigned char * p_ptr = (unsigned char *) hst->p;
@@ -75,17 +78,6 @@ define(`FINALIZE_BODY',`
 
   farfalle_roll_c (st->k);
   farfalle_roll_c (st->k);
-')dnl
-
-define(`INST',`
-#include <crypto/sk/farfalle/params/$1.h>
-
-void farfalle_$1_add_string_part (struct farfalle_$1_state * st, struct farfalle_$1_helper_state * hst, const unsigned char * str, size_t str_len) {
-ADD_STRING_PART_BODY
-}
-
-void farfalle_$1_finalize_string (struct farfalle_$1_state * st, struct farfalle_$1_helper_state * hst) {
-FINALIZE_BODY
 }
 
 #include <crypto/sk/farfalle/params/clear.h>

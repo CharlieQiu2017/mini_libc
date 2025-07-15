@@ -13,23 +13,21 @@
 #include <crypto/sk/farfalle/sane.h>
 '
 
+define(`INIT_FUNC',`
+void farfalle_$1_sane_$2_init (struct farfalle_$1_sane_state * st, const unsigned char * k, size_t tag_len) {
+  farfalle_$1_$2_init (&st->fst, k);
+  st->tag_len = tag_len;
+}
+')dnl
+
 define(`INST',`
 #include <crypto/sk/farfalle/params/$1.h>
 
-void farfalle_$1_sane_16_init (struct farfalle_$1_sane_state * st, const unsigned char * k, size_t tag_len) {
-  farfalle_$1_16_init (&st->fst, k);
-  st->tag_len = tag_len;
-}
+INIT_FUNC($1,16)
 
-void farfalle_$1_sane_24_init (struct farfalle_$1_sane_state * st, const unsigned char * k, size_t tag_len) {
-  farfalle_$1_24_init (&st->fst, k);
-  st->tag_len = tag_len;
-}
+INIT_FUNC($1,24)
 
-void farfalle_$1_sane_32_init (struct farfalle_$1_sane_state * st, const unsigned char * k, size_t tag_len) {
-  farfalle_$1_32_init (&st->fst, k);
-  st->tag_len = tag_len;
-}
+INIT_FUNC($1,32)
 
 void farfalle_$1_sane_start_session_common (struct farfalle_$1_sane_state * st, const unsigned char * nonce, size_t nonce_len) {
   farfalle_$1_reset (&st->fst);
