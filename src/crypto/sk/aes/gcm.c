@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <arm_neon.h>
-#include <crypto/sk/aes/aes.h>
+#include <crypto/sk/aes/aes_neon.h>
 
 /* AES-GCM has a confusing byte-order and bit-order convention.
    The counter block is interpreted as a big-endian integer.
@@ -21,10 +21,12 @@
 
 /* We assume the IV is always 96-bits (12 bytes) */
 
-static inline void gcm_inc_ctr (uint32_t * ctr) {
-  ctr[3] = __builtin_bswap32 (ctr[3]);
-  ctr[3]++;
-  ctr[3] = __builtin_bswap32 (ctr[3]);
+static inline uint32x4_t gcm_inc_ctr (uint32x4_t ctr) {
+  uint32_t last = vgetq_lane_u32 (ctr, 3);
+  last = __builtin_bswap32 (last);
+  last++;
+  last = __builtin_bswap32 (last);
+  return vsetq_lane_u32 (last, ctr, 3);
 }
 
 /* GCM Multiplication
@@ -59,7 +61,6 @@ static inline uint32x4_t gcm_mult (uint32x4_t ghash, uint32x4_t h) {
 
   /* We need a register p with the constant 0x00000000000000870000000000000087 */
   uint32x4_t p = vreinterpretq_u32_u64 (vdupq_n_u64 (0x87));
-  z = vdupq_n_u32 (0);
 
   asm ("pmull2 %[t0].1q, %[r1].2d, %[p].2d\n\t"
        "ext %[t1].16b, %[t0].16b, %[z].16b, #8\n\t"
@@ -77,22 +78,20 @@ static inline uint32x4_t gcm_mult (uint32x4_t ghash, uint32x4_t h) {
 
 void aes128_encrypt_gcm (const unsigned char * exkey, const unsigned char * iv, const unsigned char * add_data, size_t add_data_len, const unsigned char * data, size_t data_len, unsigned char * ct_out, unsigned char * tag_out) {
   /* Compute the H value */
-  uint32_t h_block[4] = {0};
-  uint32_t h[4];
-  aes128_encrypt_one_block (exkey, (unsigned char *) h_block, (unsigned char *) h);
+  uint32x4_t h = vdupq_n_u32 (0);
+  h = vreinterpretq_u32_u8 (aes128_encrypt_one_block_neon (exkey, vreinterpretq_u8_u32 (h)));
 
   /* Reverse the bits of H */
-  uint32x4_t h_rev = vld1q_u32 (h);
-  h_rev = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (h_rev)));
+  h = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (h)));
 
   /* Prepare J0 block */
-  uint32_t j0[4];
-  memcpy (j0, iv, 12);
-  j0[3] = 1u << 24;
+  uint32_t j0_mem[4];
+  memcpy (j0_mem, iv, 12);
+  j0_mem[3] = 1u << 24;
+  uint32x4_t j0 = vld1q_u32 (j0_mem);
 
   /* Encrypt J0, we need this later */
-  uint32_t j0_enc[4];
-  aes128_encrypt_one_block (exkey, (unsigned char *) j0, (unsigned char *) j0_enc);
+  uint32x4_t j0_enc = vreinterpretq_u32_u8 (aes128_encrypt_one_block_neon (exkey, vreinterpretq_u8_u32 (j0)));
 
   /* From this point on we no longer need the value of J0.
      We reuse it as the counter.
@@ -112,34 +111,32 @@ void aes128_encrypt_gcm (const unsigned char * exkey, const unsigned char * iv, 
     ghash = veorq_u32 (ghash, add_data_block);
 
     /* Multiply by H */
-    ghash = gcm_mult (ghash, h_rev);
+    ghash = gcm_mult (ghash, h);
 
     add_data_len -= 16; add_data += 16;
   }
 
   /* Final bytes of additional data */
   if (add_data_len > 0) {
-    uint8_t final_add_data[16] = {0};
-    memcpy (final_add_data, add_data, add_data_len);
+    uint8_t final_add_data_mem[16] = {0};
+    memcpy (final_add_data_mem, add_data, add_data_len);
 
-    uint32x4_t add_data_block = vreinterpretq_u32_u8 (vld1q_u8 (final_add_data));
+    uint32x4_t add_data_block = vreinterpretq_u32_u8 (vld1q_u8 (final_add_data_mem));
     add_data_block = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (add_data_block)));
     ghash = veorq_u32 (ghash, add_data_block);
-    ghash = gcm_mult (ghash, h_rev);
+    ghash = gcm_mult (ghash, h);
   }
 
   /* Encrypt whole blocks of data */
   while (data_len >= 16) {
     /* Increment the counter */
-    gcm_inc_ctr (j0);
+    j0 = gcm_inc_ctr (j0);
 
     /* Encrypt the counter to get the data block */
-    uint32_t ctr_enc[4];
-    aes128_encrypt_one_block (exkey, (unsigned char *) j0, (unsigned char *) ctr_enc);
+    uint32x4_t ctr_enc_block = vreinterpretq_u32_u8 (aes128_encrypt_one_block_neon (exkey, vreinterpretq_u8_u32 (j0)));
 
     /* XOR encrypted counter and data */
-    uint32x4_t ctr_enc_block = vld1q_u32 (ctr_enc);
-    uint32x4_t data_block = vreinterpretq_u32_u8 (vld1q_u8 (data));
+    uint32x4_t data_block = vreinterpretq_u32_u8 (vld1q_u8 ((const uint8_t *) data));
     ctr_enc_block = veorq_u32 (ctr_enc_block, data_block);
     vst1q_u8 (ct_out, vreinterpretq_u8_u32 (ctr_enc_block));
     ct_out += 16;
@@ -147,29 +144,42 @@ void aes128_encrypt_gcm (const unsigned char * exkey, const unsigned char * iv, 
     /* Add to ghash and multiply by H */
     ctr_enc_block = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (ctr_enc_block)));
     ghash = veorq_u32 (ghash, ctr_enc_block);
-    ghash = gcm_mult (ghash, h_rev);
+    ghash = gcm_mult (ghash, h);
 
     data_len -= 16; data += 16;
   }
 
   /* Final bytes of data */
   if (data_len > 0) {
-    gcm_inc_ctr (j0);
+    j0 = gcm_inc_ctr (j0);
 
-    uint8_t final_data[16] = {0};
-    memcpy (final_data, data, data_len);
+    uint32x4_t ctr_enc_block = vreinterpretq_u32_u8 (aes128_encrypt_one_block_neon (exkey, vreinterpretq_u8_u32 (j0)));
 
-    uint32_t ctr_enc[4];
-    aes128_encrypt_one_block (exkey, (unsigned char *) j0, (unsigned char *) ctr_enc);
+    uint8_t final_data_mem[16] = {0};
+    memcpy (final_data_mem, data, data_len);
 
-    /* We cannot simply call veorq here, because we have to truncate the final ciphertext block */
-    memxor (final_data, ctr_enc, data_len);
-    memcpy (ct_out, final_data, data_len);
+    uint32x4_t data_block = vreinterpretq_u32_u8 (vld1q_u8 (final_data_mem));
+    ctr_enc_block = veorq_u32 (ctr_enc_block, data_block);
 
-    uint32x4_t ctr_enc_block = vreinterpretq_u32_u8 (vld1q_u8 (final_data));
+    /* We have to clear the last (16 - data_len) bytes of ctr_enc_block */
+    uint64x2_t mask = vdupq_n_u64 (0);
+    if (data_len < 8) {
+      mask = vsetq_lane_u64 ((1ull << (8 * data_len)) - 1, mask, 0);
+    } else {
+      mask = vsetq_lane_u64 (~0ull, mask, 0);
+      mask = vsetq_lane_u64 ((1ull << (8 * (data_len - 8))) - 1, mask, 1);
+    }
+
+    ctr_enc_block = vandq_u32 (ctr_enc_block, vreinterpretq_u32_u64 (mask));
+
+    /* Write first to final_data_mem, then memcpy, since ct_out might not have sufficient space */
+    vst1q_u8 (final_data_mem, vreinterpretq_u8_u32 (ctr_enc_block));
+    memcpy (ct_out, final_data_mem, data_len);
+
+    /* Add to ghash and multiply by H */
     ctr_enc_block = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (ctr_enc_block)));
     ghash = veorq_u32 (ghash, ctr_enc_block);
-    ghash = gcm_mult (ghash, h_rev);
+    ghash = gcm_mult (ghash, h);
   }
 
   /* Final block: len(A) || len(C) */
@@ -179,14 +189,13 @@ void aes128_encrypt_gcm (const unsigned char * exkey, const unsigned char * iv, 
 
   final_block_u32 = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (final_block_u32)));
   ghash = veorq_u32 (ghash, final_block_u32);
-  ghash = gcm_mult (ghash, h_rev);
+  ghash = gcm_mult (ghash, h);
 
   /* Reverse bits of ghash */
   ghash = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (ghash)));
 
   /* XOR with j0_enc */
-  uint32x4_t j0_enc_block = vld1q_u32 (j0_enc);
-  ghash = veorq_u32 (ghash, j0_enc_block);
+  ghash = veorq_u32 (ghash, j0_enc);
 
   vst1q_u8 (tag_out, vreinterpretq_u8_u32 (ghash));
 
@@ -195,22 +204,20 @@ void aes128_encrypt_gcm (const unsigned char * exkey, const unsigned char * iv, 
 
 void aes128_decrypt_gcm (const unsigned char * exkey, const unsigned char * iv, const unsigned char * add_data, size_t add_data_len, const unsigned char * ct, size_t ct_len, unsigned char * data_out, unsigned char * tag_out) {
   /* Compute the H value */
-  uint32_t h_block[4] = {0};
-  uint32_t h[4];
-  aes128_encrypt_one_block (exkey, (unsigned char *) h_block, (unsigned char *) h);
+  uint32x4_t h = vdupq_n_u32 (0);
+  h = vreinterpretq_u32_u8 (aes128_encrypt_one_block_neon (exkey, vreinterpretq_u8_u32 (h)));
 
   /* Reverse the bits of H */
-  uint32x4_t h_rev = vld1q_u32 (h);
-  h_rev = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (h_rev)));
+  h = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (h)));
 
   /* Prepare J0 block */
-  uint32_t j0[4];
-  memcpy (j0, iv, 12);
-  j0[3] = 1u << 24;
+  uint32_t j0_mem[4];
+  memcpy (j0_mem, iv, 12);
+  j0_mem[3] = 1u << 24;
+  uint32x4_t j0 = vld1q_u32 (j0_mem);
 
   /* Encrypt J0 */
-  uint32_t j0_enc[4];
-  aes128_encrypt_one_block (exkey, (unsigned char *) j0, (unsigned char *) j0_enc);
+  uint32x4_t j0_enc = vreinterpretq_u32_u8 (aes128_encrypt_one_block_neon (exkey, vreinterpretq_u8_u32 (j0)));
 
   /* Length in bits */
   size_t add_data_len_orig = __builtin_bswap64 (add_data_len * 8), data_len_orig = __builtin_bswap64 (ct_len * 8);
@@ -225,20 +232,20 @@ void aes128_decrypt_gcm (const unsigned char * exkey, const unsigned char * iv, 
     ghash = veorq_u32 (ghash, add_data_block);
 
     /* Multiply by H */
-    ghash = gcm_mult (ghash, h_rev);
+    ghash = gcm_mult (ghash, h);
 
     add_data_len -= 16; add_data += 16;
   }
 
   /* Final bytes of additional data */
   if (add_data_len > 0) {
-    uint8_t final_add_data[16] = {0};
-    memcpy (final_add_data, add_data, add_data_len);
+    uint8_t final_add_data_mem[16] = {0};
+    memcpy (final_add_data_mem, add_data, add_data_len);
 
-    uint32x4_t add_data_block = vreinterpretq_u32_u8 (vld1q_u8 (final_add_data));
+    uint32x4_t add_data_block = vreinterpretq_u32_u8 (vld1q_u8 (final_add_data_mem));
     add_data_block = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (add_data_block)));
     ghash = veorq_u32 (ghash, add_data_block);
-    ghash = gcm_mult (ghash, h_rev);
+    ghash = gcm_mult (ghash, h);
   }
 
   /* Decrypt whole blocks of data */
@@ -247,17 +254,15 @@ void aes128_decrypt_gcm (const unsigned char * exkey, const unsigned char * iv, 
     uint32x4_t ct_block = vreinterpretq_u32_u8 (vld1q_u8 (ct));
     uint32x4_t ct_block_rev = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (ct_block)));
     ghash = veorq_u32 (ghash, ct_block_rev);
-    ghash = gcm_mult (ghash, h_rev);
+    ghash = gcm_mult (ghash, h);
 
     /* Increment the counter */
-    gcm_inc_ctr (j0);
+    j0 = gcm_inc_ctr (j0);
 
     /* Encrypt the counter */
-    uint32_t ctr_enc[4];
-    aes128_encrypt_one_block (exkey, (unsigned char *) j0, (unsigned char *) ctr_enc);
+    uint32x4_t ctr_enc_block = vreinterpretq_u32_u8 (aes128_encrypt_one_block_neon (exkey, vreinterpretq_u8_u32 (j0)));
 
     /* XOR encrypted counter and ct to get plaintext */
-    uint32x4_t ctr_enc_block = vld1q_u32 (ctr_enc);
     ctr_enc_block = veorq_u32 (ctr_enc_block, ct_block);
     vst1q_u8 (data_out, vreinterpretq_u8_u32 (ctr_enc_block));
     data_out += 16;
@@ -267,21 +272,21 @@ void aes128_decrypt_gcm (const unsigned char * exkey, const unsigned char * iv, 
 
   /* Final bytes of data */
   if (ct_len > 0) {
-    uint8_t final_ct[16] = {0};
-    memcpy (final_ct, ct, ct_len);
+    uint8_t final_ct_mem[16] = {0};
+    memcpy (final_ct_mem, ct, ct_len);
 
-    uint32x4_t ct_block = vreinterpretq_u32_u8 (vld1q_u8 (final_ct));
+    uint32x4_t ct_block = vreinterpretq_u32_u8 (vld1q_u8 (final_ct_mem));
     uint32x4_t ct_block_rev = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (ct_block)));
     ghash = veorq_u32 (ghash, ct_block_rev);
-    ghash = gcm_mult (ghash, h_rev);
+    ghash = gcm_mult (ghash, h);
 
-    gcm_inc_ctr (j0);
+    j0 = gcm_inc_ctr (j0);
 
-    uint32_t ctr_enc[4];
-    aes128_encrypt_one_block (exkey, (unsigned char *) j0, (unsigned char *) ctr_enc);
+    uint32x4_t ctr_enc_block = vreinterpretq_u32_u8 (aes128_encrypt_one_block_neon (exkey, vreinterpretq_u8_u32 (j0)));
+    ctr_enc_block = veorq_u32 (ctr_enc_block, ct_block);
 
-    memxor (final_ct, ctr_enc, ct_len);
-    memcpy (data_out, final_ct, ct_len);
+    vst1q_u8 (final_ct_mem, vreinterpretq_u8_u32 (ctr_enc_block));
+    memcpy (data_out, final_ct_mem, ct_len);
   }
 
   /* Final block: len(A) || len(C) */
@@ -291,14 +296,13 @@ void aes128_decrypt_gcm (const unsigned char * exkey, const unsigned char * iv, 
 
   final_block_u32 = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (final_block_u32)));
   ghash = veorq_u32 (ghash, final_block_u32);
-  ghash = gcm_mult (ghash, h_rev);
+  ghash = gcm_mult (ghash, h);
 
   /* Reverse bits of ghash */
   ghash = vreinterpretq_u32_u8 (vrbitq_u8 (vreinterpretq_u8_u32 (ghash)));
 
   /* XOR with j0_enc */
-  uint32x4_t j0_enc_block = vld1q_u32 (j0_enc);
-  ghash = veorq_u32 (ghash, j0_enc_block);
+  ghash = veorq_u32 (ghash, j0_enc);
 
   vst1q_u8 (tag_out, vreinterpretq_u8_u32 (ghash));
 
