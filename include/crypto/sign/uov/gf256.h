@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <arm_acle.h>
+#include <arm_neon.h>
 #include <crypto/common.h>
 
 /* We work in the field F_{2^8} = F_2[x] / (x^8 + x^4 + x^3 + x + 1) */
@@ -17,26 +18,14 @@
 
 /* Multiply two polynomials without reducing the result */
 static inline uint16_t gf256_mul_no_mod (uint8_t a, uint8_t b) {
-  uint16_t a_wide = a;
-  uint16_t b_wide = b;
-  uint16_t result = 0;
-
-  for (uint32_t i = 0; i < 8; ++i) {
-    result ^= a_wide * (b_wide & (1 << i));
-  }
-
-  return result;
+  poly8x8_t a_v = vcreate_p8 ((uint64_t) a);
+  poly8x8_t b_v = vcreate_p8 ((uint64_t) b);
+  poly16x8_t prod = vmull_p8 (a_v, b_v);
+  return vgetq_lane_u16 (vreinterpretq_u16_p16 (prod), 0);
 }
 
 static inline uint16_t gf256_squ_no_mod (uint8_t x) {
-  uint16_t x_wide = x;
-  uint16_t result = 0;
-
-  for (uint32_t i = 0; i < 8; ++i) {
-    result ^= (x_wide & (1 << i)) << i;
-  }
-
-  return result;
+  return gf256_mul_no_mod (x, x);
 }
 
 /* Reduce a polynomial X by (x^8 + x^4 + x^3 + x + 1)
