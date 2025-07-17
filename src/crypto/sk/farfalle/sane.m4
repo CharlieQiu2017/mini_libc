@@ -46,7 +46,7 @@ void farfalle_$1_sane_start_session_with_tag (struct farfalle_$1_sane_state * st
   farfalle_$1_extract (&st->fst, tag_out, st->tag_len);
 }
 
-unsigned char farfalle_$1_sane_start_session_check_tag (struct farfalle_$1_sane_state * st, const unsigned char * nonce, size_t nonce_len, const unsigned char * tag) {
+uint64_t farfalle_$1_sane_start_session_check_tag (struct farfalle_$1_sane_state * st, const unsigned char * nonce, size_t nonce_len, const unsigned char * tag) {
   farfalle_$1_sane_start_session_common (st, nonce, nonce_len);
   return farfalle_$1_extract_and_compare (&st->fst, tag, st->tag_len);
 }

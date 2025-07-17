@@ -20,7 +20,7 @@ void farfalle_kravatte_sane_32_init (struct farfalle_kravatte_sane_state * st, c
 void farfalle_kravatte_sane_start_session_common (struct farfalle_kravatte_sane_state * st, const unsigned char * nonce, size_t nonce_len);
 void farfalle_kravatte_sane_start_session (struct farfalle_kravatte_sane_state * st, const unsigned char * nonce, size_t nonce_len);
 void farfalle_kravatte_sane_start_session_with_tag (struct farfalle_kravatte_sane_state * st, const unsigned char * nonce, size_t nonce_len, unsigned char * tag_out);
-unsigned char farfalle_kravatte_sane_start_session_check_tag (struct farfalle_kravatte_sane_state * st, const unsigned char * nonce, size_t nonce_len, const unsigned char * tag);
+uint64_t farfalle_kravatte_sane_start_session_check_tag (struct farfalle_kravatte_sane_state * st, const unsigned char * nonce, size_t nonce_len, const unsigned char * tag);
 void farfalle_kravatte_sane_wrap (struct farfalle_kravatte_sane_state * st, const unsigned char * msg, size_t msg_len, const unsigned char * meta, size_t meta_len, unsigned char * ct_out, unsigned char * tag_out);
 unsigned char farfalle_kravatte_sane_unwrap (struct farfalle_kravatte_sane_state * st, const unsigned char * ct, size_t ct_len, const unsigned char * meta, size_t meta_len, const unsigned char * tag, unsigned char * msg_out);
 
