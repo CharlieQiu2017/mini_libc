@@ -161,7 +161,9 @@ uint8_t uov_sign (const uint8_t * seed_sk, const uint8_t * o, const uint8_t * p1
   return 1;
 }
 
-uint8_t uov_verify (const uint8_t * p1, const uint8_t * p2, const uint8_t * p3, const uint8_t * msg, size_t len, const uint8_t * salt, const uint8_t * sig) {
+/* Return 0 upon success, 1 upon failure */
+
+uint64_t uov_verify (const uint8_t * p1, const uint8_t * p2, const uint8_t * p3, const uint8_t * msg, size_t len, const uint8_t * salt, const uint8_t * sig) {
   uint8_t t[UOV_M];
   uint8_t y[UOV_M];
 
@@ -195,7 +197,7 @@ uint8_t uov_verify (const uint8_t * p1, const uint8_t * p2, const uint8_t * p3, 
     }
   }
 
-  return (safe_memcmp (t, y, UOV_M) == 0);
+  return safe_memcmp (t, y, UOV_M);
 }
 
 #undef UOV_N

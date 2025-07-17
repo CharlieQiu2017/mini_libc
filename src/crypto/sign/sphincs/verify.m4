@@ -39,11 +39,11 @@ define(`BODY',`
   unsigned char ht_pk[SPHINCS_N];
   sphincs_ht_sig_to_pk (pk_seed, idx_tree, idx_leaf, fors_pk, sig + SPHINCS_N + SPHINCS_K * (SPHINCS_A + 1) * SPHINCS_N, ht_pk);
 
-  return (memcmp (ht_pk, pk_root, SPHINCS_N) == 0);
+  return safe_memcmp (ht_pk, pk_root, SPHINCS_N);
 ')dnl
 
 define(`INST',`
-_Bool sphincs_$1_$2_verify (const unsigned char * pk, const unsigned char * msg, size_t msg_len, const unsigned char * sig) {
+uint64_t sphincs_$1_$2_verify (const unsigned char * pk, const unsigned char * msg, size_t msg_len, const unsigned char * sig) {
   #include <crypto/sign/sphincs/params/params_$1_$2.h>
 BODY
   #include <crypto/sign/sphincs/params/clear.h>

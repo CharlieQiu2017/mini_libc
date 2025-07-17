@@ -8,6 +8,6 @@ void sphincs_128f_shake_simple_gen_key (unsigned char * sk_out, unsigned char * 
 
 void sphincs_128f_shake_simple_sign (const unsigned char * sk, const unsigned char * msg, size_t msg_len, _Bool randomize, unsigned char * out);
 
-_Bool sphincs_128f_shake_simple_verify (const unsigned char * pk, const unsigned char * msg, size_t msg_len, const unsigned char * sig);
+uint64_t sphincs_128f_shake_simple_verify (const unsigned char * pk, const unsigned char * msg, size_t msg_len, const unsigned char * sig);
 
 #endif

@@ -22,7 +22,7 @@ void main (__attribute__((unused)) void * sp) {
   read (0, msg, 32);
   read (0, sig, UOV_N + 16);
 
-  uint8_t result = uov_verify (p1, p2, p3, msg, 32, sig + UOV_N, sig);
+  uint64_t result = uov_verify (p1, p2, p3, msg, 32, sig + UOV_N, sig);
 
   if (result) exit (1);
 
