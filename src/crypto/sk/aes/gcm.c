@@ -43,16 +43,17 @@ static inline uint32x4_t gcm_mult (uint32x4_t ghash, uint32x4_t h) {
   /* Output and clobber registers */
   uint32x4_t r0, r1, t0, t1;
 
-  asm ("pmull %[r0].1q, %[a].1d, %[b].1d\n\t"
-       "pmull2 %[r1].1q, %[a].2d, %[b].2d\n\t"
-       "ext %[t0].16b, %[b].16b, %[b].16b, #8\n\t"
-       "pmull %[t1].1q, %[a].1d, %[t0].1d\n\t"
-       "pmull2 %[t0].1q, %[a].2d, %[t0].2d\n\t"
-       "eor %[t0].16b, %[t0].16b, %[t1].16b\n\t"
-       "ext %[t1].16b, %[z].16b, %[t0].16b, #8\n\t"
-       "eor %[r0].16b, %[r0].16b, %[t1].16b\n\t"
-       "ext %[t1].16b, %[t0].16b, %[z].16b, #8\n\t"
-       "eor %[r1].16b, %[r1].16b, %[t1].16b\n\t"
+  __asm__ (
+    "pmull %[r0].1q, %[a].1d, %[b].1d\n\t"
+    "pmull2 %[r1].1q, %[a].2d, %[b].2d\n\t"
+    "ext %[t0].16b, %[b].16b, %[b].16b, #8\n\t"
+    "pmull %[t1].1q, %[a].1d, %[t0].1d\n\t"
+    "pmull2 %[t0].1q, %[a].2d, %[t0].2d\n\t"
+    "eor %[t0].16b, %[t0].16b, %[t1].16b\n\t"
+    "ext %[t1].16b, %[z].16b, %[t0].16b, #8\n\t"
+    "eor %[r0].16b, %[r0].16b, %[t1].16b\n\t"
+    "ext %[t1].16b, %[t0].16b, %[z].16b, #8\n\t"
+    "eor %[r1].16b, %[r1].16b, %[t1].16b\n\t"
   : [r0] "=&w" (r0), [r1] "=&w" (r1), [t0] "=&w" (t0), [t1] "=&w" (t1)
   : [a] "w" (a), [b] "w" (b), [z] "w" (z)
   : );
@@ -62,13 +63,14 @@ static inline uint32x4_t gcm_mult (uint32x4_t ghash, uint32x4_t h) {
   /* We need a register p with the constant 0x00000000000000870000000000000087 */
   uint32x4_t p = vreinterpretq_u32_u64 (vdupq_n_u64 (0x87));
 
-  asm ("pmull2 %[t0].1q, %[r1].2d, %[p].2d\n\t"
-       "ext %[t1].16b, %[t0].16b, %[z].16b, #8\n\t"
-       "eor %[r1].16b, %[r1].16b, %[t1].16b\n\t"
-       "ext %[t1].16b, %[z].16b, %[t0].16b, #8\n\t"
-       "eor %[r0].16b, %[r0].16b, %[t1].16b\n\t"
-       "pmull %[t0].1q, %[r1].1d, %[p].1d\n\t"
-       "eor %[a].16b, %[r0].16b, %[t0].16b\n\t"
+  __asm__ (
+    "pmull2 %[t0].1q, %[r1].2d, %[p].2d\n\t"
+    "ext %[t1].16b, %[t0].16b, %[z].16b, #8\n\t"
+    "eor %[r1].16b, %[r1].16b, %[t1].16b\n\t"
+    "ext %[t1].16b, %[z].16b, %[t0].16b, #8\n\t"
+    "eor %[r0].16b, %[r0].16b, %[t1].16b\n\t"
+    "pmull %[t0].1q, %[r1].1d, %[p].1d\n\t"
+    "eor %[a].16b, %[r0].16b, %[t0].16b\n\t"
   : [a] "=&w" (a), [r0] "+&w" (r0), [r1] "+&w" (r1), [t0] "=&w" (t0), [t1] "=&w" (t1)
   : [p] "w" (p), [z] "w" (z)
   : );

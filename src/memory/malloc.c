@@ -217,7 +217,7 @@ static void free_set_insert (uint16_t tid, void * elem) {
   __atomic_store_8 ((void **) elem, (uintptr_t) NULL, __ATOMIC_SEQ_CST);
 
   /* Swap tail with elem, and store original tail into curr_tail */
-  asm volatile (
+  __asm__ volatile (
     "1:\n"
     "\tldxr %[load_reg], [%[tail_ptr_reg]]\n"
     "\tstxr %w[fail_reg], %[new_val_reg], [%[tail_ptr_reg]]\n"

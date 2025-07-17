@@ -3,6 +3,7 @@ AS = /opt/aarch64-none-elf/bin/aarch64-none-elf-as
 AR = /opt/aarch64-none-elf/bin/aarch64-none-elf-ar
 LD = /opt/aarch64-none-elf/bin/aarch64-none-elf-ld
 M4 = m4
+STDFLAGS = -std=c11
 FREEFLAGS = -nostdlib -ffreestanding
 WARNFLAGS = -Wall -Wextra -pedantic -Werror -Wfatal-errors
 ARCHFLAGS = -march=armv8-a+crc+crypto -mtune=cortex-a72.cortex-a53
@@ -24,7 +25,7 @@ LIBGCC = /opt/aarch64-none-elf/lib/gcc/aarch64-none-elf/14.2.0/libgcc.a
 INCFLAGS = -I ./include
 EXTFLAGS = 
 
-CFLAGS = $(FREEFLAGS) $(WARNFLAGS) $(ARCHFLAGS) $(PROTFLAGS) $(GCFLAGS) $(OPTFLAGS) $(INCFLAGS) $(EXTFLAGS)
+CFLAGS = $(STDFLAGS) $(FREEFLAGS) $(WARNFLAGS) $(ARCHFLAGS) $(PROTFLAGS) $(GCFLAGS) $(OPTFLAGS) $(INCFLAGS) $(EXTFLAGS)
 
 # Template sources
 # These files must be first processed by M4
