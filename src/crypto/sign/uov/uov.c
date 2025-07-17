@@ -84,7 +84,7 @@ uint8_t uov_sign (const uint8_t * seed_sk, const uint8_t * o, const uint8_t * p1
     for (uint32_t i = 0; i < UOV_M; ++i) {
 
       /* Step 4.1: find a pivot row */
-      uint8_t flag = 1 - uint8_to_bool (L_ENTRY (l, i, i));
+      uint8_t flag = 1 - uint32_to_bool ((uint32_t) L_ENTRY (l, i, i));
 
       for (uint32_t j = i + 1; j < UOV_M; ++j) {
 	/* If flag == 1, add L[j][k] to L[i][k].
@@ -99,7 +99,7 @@ uint8_t uov_sign (const uint8_t * seed_sk, const uint8_t * o, const uint8_t * p1
 	y[i] ^= flag * y[j];
 
 	/* Update flag */
-	flag = 1 - uint8_to_bool (L_ENTRY (l, i, i));
+	flag = 1 - uint32_to_bool ((uint32_t) L_ENTRY (l, i, i));
       }
 
       /* If flag == 1 at end of loop, matrix is not invertible */

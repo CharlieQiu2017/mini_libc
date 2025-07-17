@@ -105,7 +105,7 @@ unsigned char farfalle_$1_sane_unwrap (struct farfalle_$1_sane_state * st, const
   }
 
   farfalle_$1_begin_extract (&st->fst);
-  unsigned char result = uint8_to_bool (farfalle_$1_extract_and_compare (&st->fst, tag, st->tag_len));
+  unsigned char result = uint64_to_bool (farfalle_$1_extract_and_compare (&st->fst, tag, st->tag_len));
 
   /* If result != 0, rollback state */
   /* Otherwise, keep current state, flip parity */

@@ -50,7 +50,7 @@ void ntrulpr_653_decapsulate (const unsigned char * sk, const unsigned char * ct
   unsigned char new_ct[NTRU_LPR_ROUND_ENC_LEN + 128 + 32];
   ntrulpr_653_encapsulate_internal (sk + NTRU_LPR_SHORT_ENC_LEN, secret, sk + NTRU_LPR_SHORT_ENC_LEN + NTRU_LPR_PK_LEN + 32, new_ct);
   uint64_t cmp = safe_memcmp (ct, new_ct, NTRU_LPR_CT_LEN);
-  uint8_t cmp_byte = (uint8_t) uint64_cmp_ge_branch (cmp, 1, 0, 1);
+  uint8_t cmp_byte = 1 - (uint8_t) uint64_to_bool (cmp);
   cond_memcpy (1 - cmp_byte, secret, sk + NTRU_LPR_SHORT_ENC_LEN + NTRU_LPR_PK_LEN, 32);
 
   /* Compute HashSession */

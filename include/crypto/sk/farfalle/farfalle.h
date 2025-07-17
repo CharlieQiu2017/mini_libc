@@ -34,7 +34,7 @@ void farfalle_kravatte_begin_extract (struct farfalle_kravatte_state * st);
 /* begin_extract_short replaces perm_d with identity. It is used for the WBC mode. */
 void farfalle_kravatte_begin_extract_short (struct farfalle_kravatte_state * st);
 void farfalle_kravatte_extract (struct farfalle_kravatte_state * st, unsigned char * out, size_t len);
-unsigned char farfalle_kravatte_extract_and_compare (struct farfalle_kravatte_state * st, const unsigned char * ref, size_t len);
+uint64_t farfalle_kravatte_extract_and_compare (struct farfalle_kravatte_state * st, const unsigned char * ref, size_t len);
 void farfalle_kravatte_skip_output (struct farfalle_kravatte_state * st, size_t len);
 
 #ifdef __cplusplus

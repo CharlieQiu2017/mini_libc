@@ -24,10 +24,6 @@ static inline uint16_t gf256_mul_no_mod (uint8_t a, uint8_t b) {
   return vgetq_lane_u16 (vreinterpretq_u16_p16 (prod), 0);
 }
 
-static inline uint16_t gf256_squ_no_mod (uint8_t x) {
-  return gf256_mul_no_mod (x, x);
-}
-
 /* Reduce a polynomial X by (x^8 + x^4 + x^3 + x + 1)
    For an explanation of this algorithm see
    https://cdrdv2-public.intel.com/836172/clmul-wp-rev-2-02-2014-04-20.pdf
@@ -68,10 +64,6 @@ static inline uint8_t gf256_mul (uint16_t a, uint16_t b) {
   return gf256_reduce (gf256_mul_no_mod (a, b));
 }
 
-static inline uint8_t gf256_squ (uint16_t x) {
-  return gf256_reduce (gf256_squ_no_mod (x));
-}
-
 static inline uint8_t gf256_inv (uint8_t x) {
   /* For an explanation of this algorithm, see
      Daniel J. Bernstein & Bo-Yin Yang,
@@ -105,17 +97,17 @@ static inline uint8_t gf256_inv (uint8_t x) {
   /* By invariant 6, we will represent r_i, s_i, u_i, v_i by the polynomials z^i * r_i, etc.
      Initially r = v = 1, s = u = 0.
    */
-  int8_t m = 8, n = 7;
+  int32_t m = 8, n = 7;
   uint32_t r = 1, s = 0, u = 0, v = 1;
 
   for (uint32_t i = 1; i <= 15; ++i) {
-    uint8_t g_tail = value_barrier (g & 1);
-    uint8_t flag = int8_cmp_ge (n, m) | (1 - g_tail);
+    uint32_t g_tail = uint32_value_barrier (g & 1);
+    uint32_t flag = int32_cmp_ge (n, m) | (1 - g_tail);
 
     uint32_t new_f_1 = f;
     uint32_t new_g_1 = ((f * g_tail) ^ g) >> 1;
-    uint8_t new_m_1 = m;
-    uint8_t new_n_1 = n - 1;
+    int32_t new_m_1 = m;
+    int32_t new_n_1 = n - 1;
     uint32_t new_r_1 = r << 1;
     uint32_t new_s_1 = s << 1;
     uint32_t new_u_1 = u ^ (r * g_tail);
@@ -123,8 +115,8 @@ static inline uint8_t gf256_inv (uint8_t x) {
 
     uint32_t new_f_2 = g;
     uint32_t new_g_2 = (f ^ g) >> 1;
-    uint8_t new_m_2 = n;
-    uint8_t new_n_2 = m - 1;
+    int32_t new_m_2 = n;
+    int32_t new_n_2 = m - 1;
     uint32_t new_r_2 = u << 1;
     uint32_t new_s_2 = v << 1;
     uint32_t new_u_2 = u ^ r;

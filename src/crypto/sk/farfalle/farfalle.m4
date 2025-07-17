@@ -190,17 +190,17 @@ void farfalle_$1_extract (struct farfalle_$1_state * st, unsigned char * out, si
   }
 }
 
-unsigned char farfalle_$1_extract_and_compare (struct farfalle_$1_state * st, const unsigned char * ref, size_t len) {
+uint64_t farfalle_$1_extract_and_compare (struct farfalle_$1_state * st, const unsigned char * ref, size_t len) {
   uint32_t off = st->output_offset;
   unsigned char * buf_ptr = (unsigned char *) st->output_buf;
 
   if (len <= FARFALLE_PERM_LEN && off + len <= FARFALLE_PERM_LEN) {
-    unsigned char result = safe_memcmp (buf_ptr + off, ref, len);
+    uint64_t result = safe_memcmp (buf_ptr + off, ref, len);
     st->output_offset = off + len;
     return result;
   } else {
     uint32_t r = FARFALLE_PERM_LEN - off;
-    unsigned char result = safe_memcmp (buf_ptr + off, ref, r);
+    uint64_t result = safe_memcmp (buf_ptr + off, ref, r);
 
     len -= r;
 
