@@ -98,10 +98,21 @@ void compute_s (const uint8_t * o, const uint8_t * p1, const uint8_t * p2, uint8
       /* Iterate through the columns of O */
       for (uint32_t k = 0; k < UOV_M; ++k) {
 	S_ENTRY (s_out, i, j, k) = 0;
-	for (uint32_t l = 0; l < UOV_V; ++l) {
-	  uint8_t t = P1_ENTRY (p1, i, j, l) ^ P1_ENTRY (p1, i, l, j);
-	  S_ENTRY (s_out, i, j, k) ^= gf256_mul (t, O_ENTRY (o, l, k));
+
+	/* Here we need to compute P^(1) + P^(1)^T.
+	   The diagonal of P^(1) + P^(1)^T must be zero.
+	   Since P^(1) is upper triangular, entries above the diagonal are simply P^(1),
+	   and entries below the diagonal are simply P^(1)^T.
+	 */
+
+	for (uint32_t l = j + 1; l < UOV_V; ++l) {
+	  S_ENTRY (s_out, i, j, k) ^= gf256_mul (P1_ENTRY (p1, i, j, l), O_ENTRY (o, l, k));
 	}
+
+	for (uint32_t l = 0; l < j; ++l) {
+	  S_ENTRY (s_out, i, j, k) ^= gf256_mul (P1_ENTRY (p1, i, l, j), O_ENTRY (o, l, k));
+	}
+
         S_ENTRY (s_out, i, j, k) ^= P2_ENTRY (p2, i, j, k);
       }
     }
