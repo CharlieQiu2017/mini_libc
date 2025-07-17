@@ -195,7 +195,7 @@ uint8_t uov_verify (const uint8_t * p1, const uint8_t * p2, const uint8_t * p3, 
     }
   }
 
-  return (memcmp (t, y, UOV_M) == 0);
+  return (safe_memcmp (t, y, UOV_M) == 0);
 }
 
 #undef UOV_N

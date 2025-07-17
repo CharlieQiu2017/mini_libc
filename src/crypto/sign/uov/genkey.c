@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <random.h>
 #include <crypto/sign/uov/gf256.h>
 
 /* We follow the data layout in the UOV signature specification.
@@ -105,6 +106,22 @@ void compute_s (const uint8_t * o, const uint8_t * p1, const uint8_t * p2, uint8
       }
     }
   }
+}
+
+void uov_gen_key (uint8_t * p1_out, uint8_t * p2_out, uint8_t * p3_out, uint8_t * seed_out, uint8_t * o_out, uint8_t * s_out) {
+  /* Randomly generate P1, P2, O, seed */
+  getrandom (p1_out, UOV_M * UOV_V * (UOV_V + 1) / 2, 0);
+  getrandom (p2_out, UOV_M * UOV_V * UOV_M, 0);
+  getrandom (o_out, UOV_V * UOV_M, 0);
+  getrandom (seed_out, 32, 0);
+
+  /* Compute P3 */
+  compute_p3 (o_out, p1_out, p2_out, p3_out);
+
+  /* Compute S */
+  compute_s (o_out, p1_out, p2_out, s_out);
+
+  return;
 }
 
 #undef UOV_N
