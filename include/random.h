@@ -39,9 +39,9 @@ struct vgetrandom_opaque_params {
   uint32_t reserved[13];
 };
 
-/* Given pointer to the auxv array, find entrypoint of the vDSO getrandom function. */
 /* This function should only be called once during process initialization. */
-void find_vdso_getrandom (void * auxv);
+/* This function should be called after interpret_vdso_from_auxv() */
+void setup_vdso_getrandom (void);
 
 #ifdef __cplusplus
 }

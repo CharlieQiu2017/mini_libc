@@ -2,6 +2,7 @@
 #include <tls.h>
 #include <io.h>
 #include <exit.h>
+#include <vdso.h>
 #include <random.h>
 
 static struct tls_struct main_tls = {
@@ -17,8 +18,8 @@ void main (void * sp) {
   auxv = auxv + 1;
 
   set_thread_pointer (&main_tls);
-
-  find_vdso_getrandom (auxv);
+  interpret_vdso_from_auxv (auxv);
+  setup_vdso_getrandom ();
 
   char rnd[32];
   getrandom (rnd, 32, 0);
