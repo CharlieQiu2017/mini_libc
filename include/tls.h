@@ -13,8 +13,16 @@ static inline __attribute__((always_inline)) void set_thread_pointer (void * ptr
   __asm__ volatile ("msr tpidr_el0, %[gs]\n" : : [gs] "r" (ptr) : "memory");
 }
 
+struct malloc_arena_t;
+
 struct tls_struct {
   uint16_t thread_id;
+
+  /* Memory allocator structures */
+  struct malloc_arena_t * malloc_arena;
+
+  /* Random number generator data structure */
+  void * gerandom_opaque_state;
 };
 
 static inline __attribute__((always_inline)) uint16_t get_thread_id (void) {
