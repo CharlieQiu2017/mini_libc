@@ -13,6 +13,8 @@ __attribute__((noreturn)) void exit (int status);
 
 __attribute__((noreturn)) void exit_group (int status);
 
+__attribute__((noreturn)) void abort (void);
+
 #ifdef __cplusplus
 }
 #endif
