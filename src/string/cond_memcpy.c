@@ -61,6 +61,7 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
   while (i && n) { *d = d_buf & 0xff; d_buf >>= 8; d++; i--; n--; }
   if (!n) return;
   s_buf >>= 8 * (8 - d_off);
+  s += 8;
 
   while (n >= 8) {
     s_buf2 = * ((const uint64_t *) s);
