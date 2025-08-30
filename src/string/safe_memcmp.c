@@ -31,7 +31,7 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
     l_buf = * ((const uint64_t *) l);
     r_buf = * ((const uint64_t *) r);
 
-    mask = ((uint64_t) -1) >> (8 * n);
+    mask = ((uint64_t) -1) << (8 * n);
     l_buf |= mask;
     r_buf |= mask;
     result |= l_buf ^ r_buf;
@@ -45,14 +45,14 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
   r_buf >>= 8 * r_off;
 
   if (n <= 8 - r_off) {
-    mask = ((uint64_t) -1) >> (8 * n);
+    mask = ((uint64_t) -1) << (8 * n);
     l_buf |= mask;
     r_buf |= mask;
     result |= l_buf ^ r_buf;
     return result;
   }
 
-  mask = ((uint64_t) -1) >> (8 * (8 - r_off));
+  mask = ((uint64_t) -1) << (8 * (8 - r_off));
   result |= (l_buf | mask) ^ (r_buf | mask);
 
   l_buf >>= (8 * (8 - r_off));
@@ -78,7 +78,7 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
   r_buf = * ((const uint64_t *) r);
   l_buf3 = l_buf | (l_buf2 << (8 * r_off));
 
-  mask = ((uint64_t) -1) >> (8 * n);
+  mask = ((uint64_t) -1) << (8 * n);
   l_buf3 |= mask;
   r_buf |= mask;
   result |= l_buf3 ^ r_buf;
