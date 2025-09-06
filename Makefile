@@ -11,14 +11,26 @@ PROTFLAGS = -fomit-frame-pointer -fno-asynchronous-unwind-tables -fcf-protection
 GCFLAGS = -ffunction-sections
 LDFLAGS = -nostdlib -static --no-dynamic-linker -e _start --gc-sections --build-id=none -T default.lds
 
+# If we choose to optimize the code, then we cannot debug it
+
 ifeq ($(optimize),1)
-OPTFLAGS = -Os -fweb
+  OPTFLAGS = -Os -fweb
 else
-OPTFLAGS = -O0
-ifeq ($(debug),1)
-OPTFLAGS += -g -fdebug-prefix-map=..=$$(readlink -f ..)
-endif
-endif
+  OPTFLAGS = -O0
+
+  ifeq ($(debug),1)
+
+# If we choose to debug the code, then optionally allow the user to pass in DEBUG_SRC_DIR,
+# since we will likely debug the code on a different machine than the machine used to compile it.
+
+    ifndef DEBUG_SRC_DIR
+      OPTFLAGS += -g
+    else
+      OPTFLAGS += -g -fdebug-prefix-map=$$(pwd -L)=$(DEBUG_SRC_DIR)
+    endif
+
+  endif # ifeq($(debug),1)
+endif # ifeq ($(optimize),1)
 
 LIBGCC = /opt/aarch64-none-elf/lib/gcc/aarch64-none-elf/14.2.0/libgcc.a
 
