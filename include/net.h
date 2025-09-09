@@ -22,9 +22,9 @@
 
    For the difference between Unix datagram and seqpacket sockets,
    see https://stackoverflow.com/questions/10104082/unix-socket-sock-seqpacket-vs-sock-dgram.
-   For seqpacket sockets, a record can be sent using one or more output operations and received using one or more input operations,
-   but a single operation never transfers parts of more than one record.
-   Record boundaries are visible to the receiver via the MSG_EOR flag in the received message flags returned by the recvmsg() function.
+   Unix seqpacket is connection-oriented: the server can listen() for connections.
+   However, once a connection is established it behaves like a datagram socket.
+   Each send() and each recv() transfers exactly one datagram.
 
    In general we only consider the socket types above.
 
@@ -62,6 +62,14 @@ extern "C" {
 #define IPPROTO_TCP 6
 #define IPPROTO_UDP 17
 #define IPPROTO_RAW 255
+
+/* struct for IP address */
+struct in_addr {
+  /* IP, byte with smallest address corresponds to left most component of IP in dot-decimal notation.
+     Hence, on little-endian machines the left most component is placed in the least-significant byte.
+   */
+  unsigned int s_addr;
+};
 
 /* Special IP addresses */
 /* Since AArch64 is little-endian, the left-most component of IP is placed in the last byte.
@@ -148,13 +156,18 @@ extern "C" {
 /* MSG_PEEK: This flag causes the receive operation to return data from the beginning of the receive queue without removing that data from the queue. */
 #define MSG_PEEK 2
 /* MSG_DONTROUTE: UDP. Don't use a gateway to send out the packet, send to hosts only on directly connected networks.
-   Don't know what effect it has on TCP.
+   Appears to be implemented only for UDP and raw sockets.
+   Does not apply to Unix sockets.
    https://stackoverflow.com/questions/14471509/neither-socket-option-so-dontroute-nor-send-flags-msg-dontroute-works
  */
 #define MSG_DONTROUTE 4
 /* MSG_CTRUNC: Indicates that some control data was discarded due to lack of space in the buffer for ancillary data. */
 #define MSG_CTRUNC 8
-/* MSG_PROBE: Do not send. Only probe path f.e. for MTU. Seems undocumented. Perhaps UDP only.
+/* MSG_PROBE: Do not send. Only probe path f.e. for MTU. Seems undocumented.
+   Appears to be only implemented for UDP and some raw sockets.
+   If this flag is set, then sendmsg() calls a function called ipv4_confirm_neigh().
+   It appears to only probe the destination in the local network.
+   For example if the destination does not belong to the local network then only the router is probed.
  */
 #define MSG_PROBE 0x10
 /* MSG_TRUNC: For recv() only.
@@ -169,7 +182,12 @@ extern "C" {
 /* MSG_DONTWAIT: The operation should not block. It returns EAGAIN when it would block. */
 #define MSG_DONTWAIT 0x40
 /* MSG_EOR: When set in send() on SOCK_SEQPACKET sockets: terminates a record.
-   When set in received msg: indicates end-of-record; the data returned completed a record (generally used with sockets of type SOCK_SEQPACKET). */
+   When set in send() on TCP: do not merge the data in this call with data in the next send() call into the same kernel buffer (skb).
+   See https://docs.kernel.org/networking/timestamping.html for why this is needed.
+   When set in received msg: indicates end-of-record; the data returned completed a record (generally used with sockets of type SOCK_SEQPACKET).
+   Howver, this feature is NOT implemented for Unix seqpacket sockets.
+   Hence, it is only used in some more specialized protocols.
+ */
 #define MSG_EOR 0x80
 /* MSG_WAITALL: For recv() on stream sockets only.
    This flag requests that the operation block until the full request is satisfied.
@@ -187,6 +205,8 @@ extern "C" {
    For TCP: Note that TCP has no error queue; MSG_ERRQUEUE is not permitted on SOCK_STREAM sockets (see ip(7)).
    IP_RECVERR is valid for TCP, but all errors are returned by socket function return or SO_ERROR only.
    Unix sockets do not have error queue.
+
+   See also SO_TIMESTAMPING below which also uses the ERRQUEUE mechanism, and supports TCP.
  */
 #define MSG_ERRQUEUE 0x2000
 /* MSG_NOSIGNAL: For both send() and recv() on stream sockets.
@@ -194,7 +214,7 @@ extern "C" {
  */
 #define MSG_NOSIGNAL 0x4000
 /* MSG_MORE: The caller has more data to send.
-   This flag is used with TCP sockets to obtain the same effect as the TCP_CORK socket option.
+   This flag is used with TCP and UDP sockets to obtain the same effect as the TCP_CORK and UDP_CORK socket option.
    This flag is not supported by UNIX domain sockets (See unix(7)).
  */
 #define MSG_MORE 0x8000
@@ -327,6 +347,8 @@ struct linger {
    Enabling this socket option causes receipt of the
    credentials of the sending process in an SCM_CREDENTIALS
    ancillary message in each subsequently received message.
+   All types of Unix sockets (stream, dgram, seqpacket) can use this option,
+   since credentials are not tied to each message.
  */
 struct ucred {
   pid_t pid;
@@ -338,6 +360,7 @@ struct ucred {
 
 /* SO_PEERCRED: Unix socket only. Retrieve the credentials of the peer process. */
 #define SO_PEERCRED 17
+
 /* SO_RCVLOWAT, SO_SNDLOWAT:
    Specify the minimum number of bytes in the buffer until the
    socket layer will pass the data to the protocol
@@ -353,6 +376,7 @@ struct ucred {
  */
 #define SO_RCVLOWAT 18
 #define SO_SNDLOWAT 19
+
 /* SO_RCVTIMEO_OLD, SO_SNDTIMEO_OLD:
    Legacy versions of SO_RCVTIMEO, SO_SNDTIMEO that use 32-bit struct timeval.
  */
@@ -392,6 +416,7 @@ struct ucred {
 /* SO_PASSSEC: Enables receiving of the SELinux security label of the peer
    socket in an ancillary message of type SCM_SECURITY.
    Unix socket only. This is related to Linux Security Modules (LSM).
+   All types of Unix sockets can use this feature.
  */
 #define SO_PASSSEC 34
 /* SO_MARK: Set a mark (a 32-bit unsigned integer) on each packet sent through this socket.
@@ -419,7 +444,6 @@ struct ucred {
    sockets, sets the value of the "peek offset" for the
    recv(2) system call when used with MSG_PEEK flag.
    See socket(7) for more details.
-
    It seems that this option is now also supported by TCP and UDP.
  */
 #define SO_PEEK_OFF 42
@@ -580,7 +604,10 @@ enum {
    This mark can only be set by local eBPF programs processing the packet.
  */
 #define SO_RCVMARK 75
-/* SO_PASSPIDFD: Unix socket. When sending messages provide a pidfd to the peer via ancillary message. */
+/* SO_PASSPIDFD: Unix socket. When sending messages provide a pidfd to the peer via ancillary message.
+   All types of Unix sockets can use this feature,
+   since pidfd is associated to the peer identity, not each datagram.
+ */
 #define SO_PASSPIDFD 76
 /* SO_PEERPIDFD: For getsockopt() only. Unix socket only. Receive a pidfd to the peer. */
 #define SO_PEERPIDFD 77
@@ -604,8 +631,19 @@ enum {
 /* Options related to timestamping.
    SO_TIMESTAMP and SO_TIMESTAMPNS are implemented for UDP and Unix datagram sockets only.
    They only provide timestamps for received datagrams.
+   The timestamps are provided in ancillary msgs.
+
    SO_TIMESTAMPING allows timestamping both sent and received packets, and also supports TCP.
    For sent packets, the timestamps are retrieved via MSG_ERRQUEUE.
+   For received packets, the timestamps are provided in ancillary msgs.
+   For TCP, the timestamp of a received msg is the timestamp of the last byte of the msg.
+   See net/ipv4/tcp.c file, function tcp_recvmsg_locked(), specifically the call to tcp_update_recv_tstamps().
+
+   According to documentation, in TCP when the user calls send() to send a buffer,
+   the timestamp is generated at the timepoint the last byte of the buffer passes through some checkpoint.
+   The implementation tries its best to keep track of the last byte of every send() call.
+   However, "in rare cases" a timestamp for a send() call can still be missed.
+
    See https://docs.kernel.org/networking/timestamping.html.
  */
 #define SO_TIMESTAMP_OLD 29
@@ -658,34 +696,139 @@ enum {
   SCM_TSTAMP_COMPLETION, /* packet tx completion */
 };
 
+/* Control message types */
+#define	SCM_RIGHTS 0x01 /* rw: access rights (array of int) */
+#define SCM_CREDENTIALS 0x02 /* rw: struct ucred */
+#define SCM_SECURITY 0x03 /* rw: security label */
+#define SCM_PIDFD 0x04 /* ro: pidfd (int) */
+
 /* IP options use the option level IPPROTO_IP */
 
+/* IP_TOS: Set or receive the Type-Of-Service (TOS) field that is sent
+   with every IP packet originating from this socket.
+ */
 #define IP_TOS 1
+/* IP_TTL: Set or retrieve the current time-to-live field that is used
+   in every packet sent from this socket.
+ */
 #define IP_TTL 2
+/* IP_HDRINCL: If enabled, the user supplies an IP header in front of the
+   user data.
+   Valid only for SOCK_RAW sockets.
+ */
 #define IP_HDRINCL 3
+/* IP_OPTIONS: Set or get the IP options to be sent with every packet from this socket. */
 #define IP_OPTIONS 4
+/* IP_ROUTER_ALERT: Pass all to-be forwarded packets with the IP Router Alert option set to this socket. */
 #define IP_ROUTER_ALERT 5
+/* IP_RECVOPTS: Pass all incoming IP options to the user in a IP_OPTIONS control message. UDP only. */
 #define IP_RECVOPTS 6
+/* IP_RETOPTS: Identical to IP_RECVOPTS, but returns raw unprocessed
+   options with timestamp and route record options not filled in for this hop.
+   UDP only.
+ */
 #define IP_RETOPTS 7
+
+/* IP_PKTINFO: Pass an IP_PKTINFO ancillary message that contains a
+   pktinfo structure that supplies some information about the incoming packet.
+   UDP only.
+ */
+struct in_pktinfo {
+  unsigned int   ipi_ifindex; /* Interface index */
+  struct in_addr ipi_spec_dst; /* Local address */
+  struct in_addr ipi_addr; /* Header destination address */
+};
+
 #define IP_PKTINFO 8
+
+/* IP_PKTOPTIONS: Undocumented. For getsockopt() only. TCP only.
+   Retrieves ancillary messages containing the TOS and TTL values that would be put into each packet.
+   Also retrieves a PKTINFO ancillary message, where ipi_addr and ipi_spec_dst are both the destination address,
+   and ipi_ifindex is the local interface index.
+   See net/ipv4/ip_sockglue.c file.
+ */
 #define IP_PKTOPTIONS 9
+
+/* IP_MTU_DISCOVER: Set or receive the Path MTU Discovery setting for a socket.
+   For TCP: the kernel performs Path MTU discovery.
+   For UDP: the kernel sets the Don't Fragment flag.
+ */
+#define IP_PMTUDISC_DONT 0 /* Never send DF frames */
+#define IP_PMTUDISC_WANT 1 /* Use per route hints */
+#define IP_PMTUDISC_DO 2 /* Always DF */
+#define IP_PMTUDISC_PROBE 3 /* Ignore dst pmtu */
+/* Always use interface mtu (ignores dst pmtu) but don't set DF flag.
+ * Also incoming ICMP frag_needed notifications will be ignored on
+ * this socket to prevent accepting spoofed ones.
+ */
+#define IP_PMTUDISC_INTERFACE 4
+/* weaker version of IP_PMTUDISC_INTERFACE, which allows packets to get
+ * fragmented if they exceed the interface mtu
+ */
+#define IP_PMTUDISC_OMIT 5
+
 #define IP_MTU_DISCOVER 10
+
+/* IP_RECVERR: Receive errors via ERRQUEUE. see MSG_ERRQUEUE above. */
 #define IP_RECVERR 11
+/* IP_RECVTTL: Receive TTL ancillary msg. UDP only. */
 #define IP_RECVTTL 12
+/* IP_RECVTOS: Receive TOS ancillary msg. UDP only. */
 #define	IP_RECVTOS 13
+/* IP_MTU: For getsockopt() only. Retrieve the current known MTU value. */
 #define IP_MTU 14
+/* IP_FREEBIND: If enabled, this boolean option allows binding to an IP
+   address that is nonlocal or does not (yet) exist.
+ */
 #define IP_FREEBIND 15
+/* IP_IPSEC_POLICY: Related to IPSec which is handled by the XFRM framework.
+   The XFRM framework implemented packet transformation for IP.
+   https://man7.org/linux/man-pages/man8/ip-xfrm.8.html
+ */
 #define IP_IPSEC_POLICY 16
+/* IP_XFRM_POLICY: Related to the XFRM framework. See above. */
 #define IP_XFRM_POLICY 17
+/* IP_PASSSEC: UDP only. If labeled IPSEC or NetLabel is configured on the sending
+   and receiving hosts, this option enables receiving of the
+   security context of the peer socket in an ancillary message
+   of type SCM_SECURITY retrieved using recvmsg(2).
+ */
 #define IP_PASSSEC 18
+/* IP_TRANSPARENT: Setting this boolean option enables transparent proxying on this socket. */
 #define IP_TRANSPARENT 19
+/* IP_ORIGDSTADDR: See IP_RECVORIGDSTADDR. */
 #define IP_ORIGDSTADDR 20
+/* IP_RECVORIGDSTADDR: UDP only. This boolean option enables the IP_ORIGDSTADDR ancillary
+   message in recvmsg(2), in which the kernel returns the
+   original destination address of the datagram being received.
+ */
+#define IP_RECVORIGDSTADDR IP_ORIGDSTADDR
+/* IP_MINTTL: Undocumented. Drop packets with TTL less than the set value.
+   Seems to affect TCP only.
+ */
 #define IP_MINTTL 21
+/* IP_NODEFRAG: Raw sockets only. If enabled (argument is nonzero), the reassembly of
+   outgoing packets is disabled in the netfilter layer.
+ */
 #define IP_NODEFRAG 22
+/* IP_CHECKSUM: Undocumented. Receive checksum of packet via ancillary msg. UDP only. */
 #define IP_CHECKSUM 23
+/* IP_BIND_ADDRESS_NO_PORT: Inform the kernel to not reserve an ephemeral port when
+   using bind(2) with a port number of 0.
+ */
 #define IP_BIND_ADDRESS_NO_PORT 24
+/* IP_RECVFRAGSIZE: Undocumented. Appears to be receiving UDP maximum fragment size. UDP only.
+   See net/ipv4/ip_sockglue.c file, ip_cmsg_recv_fragsize() function.
+ */
 #define IP_RECVFRAGSIZE 25
+/* IP_RECVERR_RFC4884: Undocumented.
+   RFC 4884 is a document that allows ICMP error messages Destination Unreachable,
+   Time Exceeded, Parameter Problem to be extended with some data structure.
+   This option allows returning the extended structure via ancillary msgs.
+ */
 #define IP_RECVERR_RFC4884 26
+
+/* IP Multicast settings */
 #define IP_MULTICAST_IF 32
 #define IP_MULTICAST_TTL 33
 #define IP_MULTICAST_LOOP 34
@@ -705,23 +848,11 @@ enum {
 #define MCAST_MSFILTER 48
 #define IP_MULTICAST_ALL 49
 #define IP_UNICAST_IF 50
-#define IP_LOCAL_PORT_RANGE 51
-#define IP_PROTOCOL 52
 
-/* IP_MTU_DISCOVER values */
-#define IP_PMTUDISC_DONT 0 /* Never send DF frames */
-#define IP_PMTUDISC_WANT 1 /* Use per route hints */
-#define IP_PMTUDISC_DO 2 /* Always DF */
-#define IP_PMTUDISC_PROBE 3 /* Ignore dst pmtu */
-/* Always use interface mtu (ignores dst pmtu) but don't set DF flag.
- * Also incoming ICMP frag_needed notifications will be ignored on
- * this socket to prevent accepting spoofed ones.
- */
-#define IP_PMTUDISC_INTERFACE 4
-/* weaker version of IP_PMTUDISC_INTERFACE, which allows packets to get
- * fragmented if they exceed the interface mtu
- */
-#define IP_PMTUDISC_OMIT 5
+/* IP_LOCAL_PORT_RANGE: Set or get the per-socket default local port range. */
+#define IP_LOCAL_PORT_RANGE 51
+/* IP_PROTOCOL: When calling sendmsg() on a raw IP socket, specify the protocol field. */
+#define IP_PROTOCOL 52
 
 /* TCP options use the option level IPPROTO_TCP */
 
@@ -739,7 +870,7 @@ enum {
 #define TCP_QUICKACK 12 /* Block/reenable quick acks */
 #define TCP_CONGESTION 13 /* Congestion control algorithm */
 #define TCP_MD5SIG 14 /* TCP MD5 Signature (RFC2385) */
-#define TCP_THIN_LINEAR_TIMEOUTS 16 /* Use linear timeouts for thin streams*/
+#define TCP_THIN_LINEAR_TIMEOUTS 16 /* Use linear timeouts for thin streams */
 #define TCP_THIN_DUPACK 17 /* Fast retrans. after 1 dupack */
 #define TCP_USER_TIMEOUT 18 /* How long for loss retry before timeout */
 #define TCP_REPAIR 19 /* TCP sock is under repair right now */
@@ -798,13 +929,6 @@ struct sockaddr_un {
   char sun_path[108]; /* pathname */
 };
 
-struct in_addr {
-  /* IP, byte with smallest address corresponds to left most component of IP in dot-decimal notation.
-     Hence, on little-endian machines the left most component is placed in the least-significant byte.
-   */
-  unsigned int s_addr;
-};
-
 struct sockaddr_in {
   sa_family_t sin_family; /* AF_INET */
   unsigned short sin_port; /* Port number (big endian) */
@@ -816,7 +940,7 @@ struct sockaddr_in {
 struct msghdr {
   void *msg_name; /* ptr to socket address structure */
   int msg_namelen; /* size of socket address structure */
-  void *msg_iov; /* scatter/gather array, this is supposed to be struct iovec. Include uio.h. */
+  struct iovec *msg_iov; /* scatter/gather array */
   size_t msg_iovlen; /* # elements in msg_iov */
   void *msg_control; /* ancillary data */
   size_t msg_controllen; /* ancillary data buffer length */

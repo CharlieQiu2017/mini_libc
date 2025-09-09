@@ -17,6 +17,14 @@ ssize_t write (fd_t fd, const void * buf, size_t count) {
   return syscall3 (fd, (long) buf, count, __NR_write);
 }
 
+ssize_t pread (fd_t fd, void * buf, size_t count, long offset) {
+  return syscall4 (fd, (long) buf, count, offset, __NR_pread64);
+}
+
+ssize_t pwrite (fd_t fd, const void * buf, size_t count, long offset) {
+  return syscall4 (fd, (long) buf, count, offset, __NR_pwrite64);
+}
+
 /* sys_openat
    dfd should be either an open file descriptor, or AT_FDCWD
  */
@@ -44,3 +52,20 @@ ssize_t puts (const char * str) {
   ssize_t ret = write (1, str, len);
   return ret;
 }
+
+long lseek (fd_t fd, long offset, int whence) {
+  return syscall3 (fd, offset, whence, __NR_lseek);
+}
+
+ssize_t readv (int fd, const struct iovec * iov, int iovcnt) {
+  return syscall3 (fd, (long) iov, iovcnt, __NR_readv);
+}
+
+ssize_t writev (int fd, const struct iovec * iov, int iovcnt) {
+  return syscall3 (fd, (long) iov, iovcnt, __NR_writev);
+}
+
+ssize_t preadv (int fd, const struct iovec * iov, int iovcnt, long offset);
+ssize_t pwritev (int fd, const struct iovec * iov, int iovcnt, long offset);
+ssize_t preadv2 (int fd, const struct iovec * iov, int iovcnt, long offset, int flags);
+ssize_t pwritev2 (int fd, const struct iovec * iov, int iovcnt, long offset, int flags);

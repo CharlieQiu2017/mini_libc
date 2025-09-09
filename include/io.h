@@ -2,6 +2,7 @@
    Adapted from Linux kernel include/uapi/asm-generic/fcntl.h
    Adapted from Linux kernel arch/arm64/include/uapi/asm/fcntl.h
    Adapted from Linux kernel include/uapi/linux/stat.h
+   Adapted from Linux kernel include/uapi/linux/fs.h
  */
 
 #ifndef IO_H
@@ -18,8 +19,9 @@ typedef int fd_t;
 typedef unsigned short umode_t;
 
 ssize_t read (fd_t fd, void * buf, size_t count);
-
 ssize_t write (fd_t fd, const void * buf, size_t count);
+ssize_t pread (fd_t fd, void * buf, size_t count, long offset);
+ssize_t pwrite (fd_t fd, const void * buf, size_t count, long offset);
 
 /* The difference between O_SYNC and O_DSYNC is that
    O_DSYNC does not wait for flushing metadata that is not
@@ -74,16 +76,34 @@ ssize_t write (fd_t fd, const void * buf, size_t count);
 #define F_SETLKW 7
 
 fd_t openat (fd_t dfd, const char * filename, int flags, umode_t mode);
-
 fd_t open (const char * filename, int flags, umode_t mode);
-
 int close (fd_t fd);
-
 fd_t dup (fd_t fd);
-
 int fcntl (fd_t fd, int cmd, unsigned long arg);
-
 ssize_t puts (const char * str);
+long lseek (fd_t fd, long offset, int whence);
+
+struct iovec {
+  void *iov_base;
+  size_t iov_len;
+};
+
+#define RWF_HIPRI 0x00000001
+#define RWF_DSYNC 0x00000002
+#define RWF_SYNC 0x00000004
+#define RWF_NOWAIT 0x00000008
+#define RWF_APPEND 0x00000010
+#define RWF_NOAPPEND 0x00000020
+/* RWF_ATOMIC: https://docs.kernel.org/next/filesystems/ext4/atomic_writes.html */
+#define RWF_ATOMIC 0x00000040
+#define RWF_DONTCACHE 0x00000080
+
+ssize_t readv (int fd, const struct iovec * iov, int iovcnt);
+ssize_t writev (int fd, const struct iovec * iov, int iovcnt);
+ssize_t preadv (int fd, const struct iovec * iov, int iovcnt, long offset);
+ssize_t pwritev (int fd, const struct iovec * iov, int iovcnt, long offset);
+ssize_t preadv2 (int fd, const struct iovec * iov, int iovcnt, long offset, int flags);
+ssize_t pwritev2 (int fd, const struct iovec * iov, int iovcnt, long offset, int flags);
 
 #ifdef __cplusplus
 }
