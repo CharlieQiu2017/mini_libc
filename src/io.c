@@ -44,6 +44,10 @@ fd_t dup (fd_t fd) {
   return syscall1 (fd, __NR_dup);
 }
 
+fd_t dup3 (fd_t fd, fd_t new_fd, int flags) {
+  return syscall3 (fd, new_fd, flags, __NR_dup3);
+}
+
 /* puts
    strlen(str) should be at most 0x7ffff000
  */

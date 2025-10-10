@@ -79,6 +79,7 @@ fd_t openat (fd_t dfd, const char * filename, int flags, umode_t mode);
 fd_t open (const char * filename, int flags, umode_t mode);
 int close (fd_t fd);
 fd_t dup (fd_t fd);
+fd_t dup3 (fd_t fd, fd_t new_fd, int flags);
 int fcntl (fd_t fd, int cmd, unsigned long arg);
 ssize_t puts (const char * str);
 long lseek (fd_t fd, long offset, int whence);
@@ -96,6 +97,7 @@ struct iovec {
 #define RWF_NOAPPEND 0x00000020
 /* RWF_ATOMIC: https://docs.kernel.org/next/filesystems/ext4/atomic_writes.html */
 #define RWF_ATOMIC 0x00000040
+/* RWF_DONTCACHE: https://lkml.org/lkml/2024/12/20/936 */
 #define RWF_DONTCACHE 0x00000080
 
 ssize_t readv (int fd, const struct iovec * iov, int iovcnt);
