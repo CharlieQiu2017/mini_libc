@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <string.h>
+#include <string_internal.h>
 
 #define ONES ((size_t) -1 / 255)
 #define HIGHS (ONES * 128)
@@ -20,15 +21,15 @@ static size_t strncpy_internal (char * restrict d, const char * restrict s, size
     uint64_t s_buf;
 
     while (n >= 8) {
-      s_buf = * ((const uint64_t *) s);
+      s_buf = read_u64 (s);
       if (HASZERO (s_buf)) goto aligned_s_end_flag;
-      * ((uint64_t *) d) = s_buf;
+      * ((uint64_alias_t *) d) = s_buf;
       s += 8; d += 8; n -= 8;
     }
 
     if (!n) return d - orig_d;
 
-    s_buf = * ((const uint64_t *) s);
+    s_buf = read_u64 (s);
     while (n && (s_buf & 0xff)) { *d = s_buf & 0xff; s_buf >>= 8; d++; n--; }
     return d - orig_d;
 
@@ -39,7 +40,7 @@ aligned_s_end_flag:
   }
 
   /* 2. Read 8 bytes of s */
-  uint64_t s_buf1 = * ((const uint64_t *) s), s_buf2, s_buf3;
+  uint64_t s_buf1 = read_u64 (s), s_buf2, s_buf3;
 
   /* 3. Write (8 - d_off) bytes to d, so that d is now aligned */
 
@@ -54,11 +55,11 @@ aligned_s_end_flag:
   /* 4. Repeat write 8 bytes to R */
   while (n >= 8) {
     s += 8;
-    s_buf2 = * ((const uint64_t *) s);
+    s_buf2 = read_u64 (s);
     s_buf3 = s_buf1 | (s_buf2 << (8 * d_off));
     if (HASZERO (s_buf2)) goto s_end_flag;
 
-    * ((uint64_t *) d) = s_buf3;
+    * ((uint64_alias_t *) d) = s_buf3;
     s_buf1 = s_buf2 >> (8 * (8 - d_off));
     d += 8; n -= 8;
   }
@@ -71,7 +72,7 @@ aligned_s_end_flag:
   while (i && n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; i--; n--; }
   if (i || !n) return d - orig_d;
 
-  s += 8; s_buf1 = * ((const uint64_t *) s);
+  s += 8; s_buf1 = read_u64 (s);
   while (n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
   return d - orig_d;
 

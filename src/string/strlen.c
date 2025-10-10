@@ -4,6 +4,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+#include <string_internal.h>
 
 #define ONES ((size_t) -1 / 255) /* 0x0101010101010101 */
 #define HIGHS (ONES * 128) /* 0x8080808080808080 */
@@ -28,7 +30,7 @@ size_t strlen (const char * s) {
   uint64_t buf;
 
   while (1) {
-    buf = * ((uint64_t *) s);
+    buf = read_u64 (s);
     if (HASZERO (buf)) break;
     s += 8;
   }

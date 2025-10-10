@@ -7,6 +7,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+#include <string_internal.h>
 
 uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
   const unsigned char * l = vl, * r = vr;
@@ -19,8 +21,8 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
 
   if (((uintptr_t) r & 7) == 0) {
     while (n >= 8) {
-      l_buf = * ((const uint64_t *) l);
-      r_buf = * ((const uint64_t *) r);
+      l_buf = read_u64 (l);
+      r_buf = read_u64 (r);
       result |= l_buf ^ r_buf;
 
       l += 8; r += 8; n -= 8;
@@ -28,8 +30,8 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
 
     if (!n) return result;
 
-    l_buf = * ((const uint64_t *) l);
-    r_buf = * ((const uint64_t *) r);
+    l_buf = read_u64 (l);
+    r_buf = read_u64 (r);
 
     mask = ((uint64_t) -1) << (8 * n);
     l_buf |= mask;
@@ -40,8 +42,8 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
   }
 
   uint32_t r_off = (uintptr_t) r & 7;
-  l_buf = * ((const uint64_t *) l);
-  r_buf = * ((const uint64_t *) (r - r_off));
+  l_buf = read_u64 (l);
+  r_buf = read_u64 (r - r_off);
   r_buf >>= 8 * r_off;
 
   if (n <= 8 - r_off) {
@@ -61,8 +63,8 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
   n -= (8 - r_off);
 
   while (n >= 8) {
-    l_buf2 = * ((const uint64_t *) l);
-    r_buf = * ((const uint64_t *) r);
+    l_buf2 = read_u64 (l);
+    r_buf = read_u64 (r);
     l_buf3 = l_buf | (l_buf2 << (8 * r_off));
     result |= l_buf3 ^ r_buf;
 
@@ -74,8 +76,8 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
 
   if (!n) return 0;
 
-  if (n <= r_off) l_buf2 = 0; else l_buf2 = * ((const uint64_t *) l);
-  r_buf = * ((const uint64_t *) r);
+  if (n <= r_off) l_buf2 = 0; else l_buf2 = read_u64 (l);
+  r_buf = read_u64 (r);
   l_buf3 = l_buf | (l_buf2 << (8 * r_off));
 
   mask = ((uint64_t) -1) << (8 * n);

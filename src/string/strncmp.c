@@ -1,5 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+#include <string_internal.h>
 
 #define ONES ((size_t) -1 / 255) /* 0x0101010101010101 */
 #define HIGHS (ONES * 128) /* 0x8080808080808080 */
@@ -20,8 +22,8 @@ int32_t strncmp (const char * sl, const char * sr, size_t n) {
 
   if (((uintptr_t) r & 7) == 0) {
     while (n >= 8) {
-      l_buf = * ((const uint64_t *) l);
-      r_buf = * ((const uint64_t *) r);
+      l_buf = read_u64 (l);
+      r_buf = read_u64 (r);
       if (HASZERO (l_buf) || l_buf != r_buf) goto aligned_end_flag;
       l += 8;
       r += 8;
@@ -30,8 +32,8 @@ int32_t strncmp (const char * sl, const char * sr, size_t n) {
 
     if (!n) return 0;
 
-    l_buf = * ((const uint64_t *) l);
-    r_buf = * ((const uint64_t *) r);
+    l_buf = read_u64 (l);
+    r_buf = read_u64 (r);
 
     while (n && (l_buf & 0xff) && ((l_buf & 0xff) == (r_buf & 0xff))) { l_buf >>= 8; r_buf >>= 8; n--; }
     if (!n) return 0;
@@ -43,8 +45,8 @@ aligned_end_flag:
   }
 
   uint32_t r_off = (uintptr_t) r & 7;
-  l_buf = * ((const uint64_t *) l);
-  r_buf = * ((const uint64_t *) (r - r_off));
+  l_buf = read_u64 (l);
+  r_buf = read_u64 (r - r_off);
   r_buf >>= 8 * r_off;
 
   /* 3. Compare the next (8 - r_off) bytes */
@@ -59,8 +61,8 @@ aligned_end_flag:
 
   /* 4. Repeat read and compare 8 bytes of L, R */
   while (n >= 8) {
-    l_buf2 = * ((const uint64_t *) l);
-    r_buf = * ((const uint64_t *) r);
+    l_buf2 = read_u64 (l);
+    r_buf = read_u64 (r);
     l_buf3 = l_buf | (l_buf2 << (8 * r_off));
 
     if (HASZERO (l_buf2)) goto end_flag;
@@ -95,7 +97,7 @@ aligned_end_flag:
      We read the next 8 bytes of R. Since n < 8, we do not need
      further bytes of R.
    */
-  r_buf = * ((const uint64_t *) r);
+  r_buf = read_u64 (r);
   /* There are still r_off bytes in l_buf not yet compared, compare them */
   i = r_off;
   while (i && n && (l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; i--; n--; }
@@ -105,7 +107,7 @@ aligned_end_flag:
   /* If we reach this point, then there are (8 - r_off) bytes
      remaining in r_buf, but n < 8 - r_off.
    */
-  l_buf = * ((const uint64_t *) l);
+  l_buf = read_u64 (l);
   while (n && (l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; n--; }
   if (!n) return 0;
   return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
@@ -124,7 +126,7 @@ end_flag:
   l_buf = l_buf2 >> (8 * (8 - r_off));
   r += 8;
   n -= 8;
-  r_buf = * ((const uint64_t *) r);
+  r_buf = read_u64 (r);
 
   while (n && (l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; n--; }
   if (!n) return 0;

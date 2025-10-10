@@ -7,6 +7,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+#include <string_internal.h>
 
 void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, size_t n) {
   const unsigned char * s = (const unsigned char *) vs;
@@ -29,18 +31,18 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
 
   if (((uintptr_t) d & 7) == 0) {
     while (n >= 8) {
-      s_buf = * ((const uint64_t *) s);
-      d_buf = * ((uint64_t *) d);
+      s_buf = read_u64 (s);
+      d_buf = read_u64 (d);
       d_buf = (s_buf & mask_src_long) | (d_buf & mask_dst_long);
-      * ((uint64_t *) d) = d_buf;
+      * ((uint64_alias_t *) d) = d_buf;
 
       s += 8; d += 8; n -= 8;
     }
 
     if (!n) return;
 
-    s_buf = * ((const uint64_t *) s);
-    d_buf = * ((uint64_t *) d);
+    s_buf = read_u64 (s);
+    d_buf = read_u64 (d);
     d_buf = (s_buf & mask_src_long) | (d_buf & mask_dst_long);
 
     while (n) {
@@ -52,8 +54,8 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
   }
 
   uint32_t d_off = (uintptr_t) d & 7;
-  s_buf = * ((const uint64_t *) s);
-  d_buf = * ((uint64_t *) (d - d_off));
+  s_buf = read_u64 (s);
+  d_buf = read_u64 (d - d_off);
   d_buf >>= 8 * d_off;
   d_buf = (s_buf & mask_src_long) | (d_buf & mask_dst_long);
 
@@ -64,11 +66,11 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
   s += 8;
 
   while (n >= 8) {
-    s_buf2 = * ((const uint64_t *) s);
-    d_buf = * ((uint64_t *) d);
+    s_buf2 = read_u64 (s);
+    d_buf = read_u64 (d);
     s_buf3 = s_buf | (s_buf2 << (8 * d_off));
     d_buf = (s_buf3 & mask_src_long) | (d_buf & mask_dst_long);
-    * ((uint64_t *) d) = d_buf;
+    * ((uint64_alias_t *) d) = d_buf;
 
     s_buf = s_buf2 >> 8 * (8 - d_off);
     s += 8; d += 8; n -= 8;
@@ -76,8 +78,8 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
 
   if (!n) return;
 
-  if (n <= d_off) s_buf2 = 0; else s_buf2 = * ((const uint64_t *) s);
-  d_buf = * ((uint64_t *) d);
+  if (n <= d_off) s_buf2 = 0; else s_buf2 = read_u64 (s);
+  d_buf = read_u64 (d);
   s_buf3 = s_buf | (s_buf2 << (8 * d_off));
   d_buf = (s_buf3 & mask_src_long) | (d_buf & mask_dst_long);
 

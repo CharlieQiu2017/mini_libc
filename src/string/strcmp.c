@@ -1,5 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+#include <string_internal.h>
 
 /* Surprise! On aarch64 platforms "char" is "unsigned char"! */
 
@@ -22,8 +24,8 @@ int32_t strcmp (const char * sl, const char * sr) {
 
   if (((uintptr_t) r & 7) == 0) {
     while (1) {
-      l_buf = * ((const uint64_t *) l);
-      r_buf = * ((const uint64_t *) r);
+      l_buf = read_u64 (l);
+      r_buf = read_u64 (r);
       if (HASZERO (l_buf) || l_buf != r_buf) break;
       l += 8;
       r += 8;
@@ -34,8 +36,8 @@ int32_t strcmp (const char * sl, const char * sr) {
   }
 
   uint32_t r_off = (uintptr_t) r & 7;
-  l_buf = * ((const uint64_t *) l);
-  r_buf = * ((const uint64_t *) (r - r_off));
+  l_buf = read_u64 (l);
+  r_buf = read_u64 (r - r_off);
   r_buf >>= 8 * r_off;
 
   /* 3. Compare the next (8 - r_off) bytes */
@@ -50,15 +52,15 @@ int32_t strcmp (const char * sl, const char * sr) {
   r += (8 - r_off);
 
   if (l_end_flag) {
-    r_buf = * ((const uint64_t *) r);
+    r_buf = read_u64 (r);
     while ((l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; }
     return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
   }
 
   /* 4. Repeat read and compare 8 bytes of L, R */
   while (1) {
-    l_buf2 = * ((const uint64_t *) l);
-    r_buf = * ((const uint64_t *) r);
+    l_buf2 = read_u64 (l);
+    r_buf = read_u64 (r);
     l_buf3 = l_buf | (l_buf2 << (8 * r_off));
     if (HASZERO (l_buf2)) goto l_end_flag;
     if (l_buf3 != r_buf) goto neq_flag;
@@ -77,7 +79,7 @@ l_end_flag:
 
   l_buf = l_buf2 >> (8 * (8 - r_off));
   r += 8;
-  r_buf = * ((const uint64_t *) r);
+  r_buf = read_u64 (r);
 
   while ((l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; }
   return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));

@@ -5,126 +5,65 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdint.h>
+#include <string_internal.h>
 
 void * memcpy (void * restrict dest, const void * restrict src, size_t n) {
-  unsigned char * d = dest;
   const unsigned char * s = src;
-  typedef uint32_t __attribute__((__may_alias__)) u32;
-  uint32_t w, x;
+  unsigned char * d = dest;
 
-  /* Align src to 4-byte boundary */
-  while (n && ((uintptr_t) s & 3)) { *d++ = *s++; n--; }
+  /* 1. Copy initial bytes until s is aligned */
 
-  /* If dst is also aligned to 4-byte boundary,
-     then simply copy 4 bytes at once.
-   */
-  if (((uintptr_t) d & 3) == 0) {
-    while (n >= 16) {
-      * (u32 *) (d + 0) = * (u32 *) (s + 0);
-      * (u32 *) (d + 4) = * (u32 *) (s + 4);
-      * (u32 *) (d + 8) = * (u32 *) (s + 8);
-      * (u32 *) (d + 12) = * (u32 *) (s + 12);
-      s += 16; d += 16; n -= 16;
+  while (n && ((uintptr_t) s & 7)) { *d = *s; s++; d++; n--; }
+  if (!n) return dest;
+
+  uint64_t s_buf, s_buf2, s_buf3;
+
+  /* 2. If d is also aligned, copy 8 bytes at a time */
+
+  if (((uintptr_t) d & 7) == 0) {
+    while (n >= 8) {
+      s_buf = read_u64 (s);
+      *((uint64_alias_t *) d) = s_buf;
+      s += 8; d += 8; n -= 8;
     }
 
-    /* Handle remaining tail */
-    if (n & 8) {
-      * (u32 *) (d + 0) = * (u32 *) (s + 0);
-      * (u32 *) (d + 4) = * (u32 *) (s + 4);
-      d += 8; s += 8;
-    }
-    if (n & 4) {
-      * (u32 *) (d + 0) = * (u32 *) (s + 0);
-      d += 4; s += 4;
-    }
-    if (n & 2) {
-      *d++ = *s++; *d++ = *s++;
-    }
-    if (n & 1) {
-      *d = *s;
-    }
+    if (!n) return dest;
+
+    s_buf = read_u64 (s);
+
+    while (n) { *d = s_buf & 0xff; s_buf >>= 8; d++; n--; }
+
     return dest;
   }
 
-  /* AArch64 is little-endian,
-     so ">>" corresponds to moving bytes to lower addresses.
-   */
+  /* 3. Align d */
 
-  if (n >= 32) {
-    switch ((uintptr_t) d & 3) {
-    case 1:
-      w = *(u32 *) s;
-      *d++ = *s++;
-      *d++ = *s++;
-      *d++ = *s++;
-      n -= 3;
-      while (n >= 17) {
-	x = *(u32 *)(s + 1);
-	*(u32 *)(d + 0) = (w >> 24) | (x << 8);
-	w = *(u32 *)(s + 5);
-	*(u32 *)(d + 4) = (x >> 24) | (w << 8);
-	x = *(u32 *)(s + 9);
-	*(u32 *)(d + 8) = (w >> 24) | (x << 8);
-	w = *(u32 *)(s + 13);
-	*(u32 *)(d + 12) = (x >> 24) | (w << 8);
-	s += 16; d += 16; n -= 16;
-      }
-      break;
-    case 2:
-      w = *(u32 *) s;
-      *d++ = *s++;
-      *d++ = *s++;
-      n -= 2;
-      while (n >= 18) {
-	x = *(u32 *)(s + 2);
-	*(u32 *)(d + 0) = (w >> 16) | (x << 16);
-	w = *(u32 *)(s + 6);
-	*(u32 *)(d + 4) = (x >> 16) | (w << 16);
-	x = *(u32 *)(s + 10);
-	*(u32 *)(d + 8) = (w >> 16) | (x << 16);
-	w = *(u32 *)(s + 14);
-	*(u32 *)(d + 12) = (x >> 16) | (w << 16);
-	s += 16; d += 16; n -= 16;
-      }
-      break;
-    case 3:
-      w = *(u32 *)s;
-      *d++ = *s++;
-      n -= 1;
-      while (n >= 19) {
-	x = *(u32 *)(s + 3);
-	*(u32 *)(d + 0) = (w >> 8) | (x << 24);
-	w = *(u32 *)(s + 7);
-	*(u32 *)(d + 4) = (x >> 8) | (w << 24);
-	x = *(u32 *)(s + 11);
-	*(u32 *)(d + 8) = (w >> 8) | (x << 24);
-	w = *(u32 *)(s + 15);
-	*(u32 *)(d + 12) = (x >> 8) | (w << 24);
-	s += 16; d += 16; n -= 16;
-      }
-      break;
-    }
+  uint32_t d_off = (uintptr_t) d & 7;
+  s_buf = read_u64 (s);
+
+  uint32_t i = 8 - d_off;
+  while (i && n) { *d = s_buf & 0xff; s_buf >>= 8; d++; n--; i--; }
+  if (!n) return dest;
+
+  /* 4. Copy 8 bytes at once */
+
+  s += 8;
+
+  while (n >= 8) {
+    s_buf2 = read_u64 (s);
+    s_buf3 = s_buf | (s_buf2 << (8 * d_off));
+    *((uint64_alias_t *) d) = s_buf3;
+
+    s_buf = s_buf2 >> (8 * (8 - d_off));
+    s += 8; d += 8; n -= 8;
   }
 
-  /* Handle remaining tail */
-  if (n & 16) {
-    *d++ = *s++; *d++ = *s++; *d++ = *s++; *d++ = *s++;
-    *d++ = *s++; *d++ = *s++; *d++ = *s++; *d++ = *s++;
-    *d++ = *s++; *d++ = *s++; *d++ = *s++; *d++ = *s++;
-    *d++ = *s++; *d++ = *s++; *d++ = *s++; *d++ = *s++;
-  }
-  if (n & 8) {
-    *d++ = *s++; *d++ = *s++; *d++ = *s++; *d++ = *s++;
-    *d++ = *s++; *d++ = *s++; *d++ = *s++; *d++ = *s++;
-  }
-  if (n & 4) {
-    *d++ = *s++; *d++ = *s++; *d++ = *s++; *d++ = *s++;
-  }
-  if (n & 2) {
-    *d++ = *s++; *d++ = *s++;
-  }
-  if (n & 1) {
-    *d = *s;
-  }
+  if (!n) return dest;
+
+  /* 5. Copy final bytes */
+
+  if (n <= d_off) s_buf2 = 0; else s_buf2 = read_u64 (s);
+  s_buf3 = s_buf | (s_buf2 << (8 * d_off));
+  while (n) { *d = s_buf3 & 0xff; s_buf3 >>= 8; d++; n--; }
   return dest;
 }

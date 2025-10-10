@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include <string_internal.h>
 
 /* See strlen.c */
 #define ONES ((size_t) -1 / 255)
@@ -25,9 +26,9 @@ char * strcpy (char * restrict d, const char * restrict s) {
     uint64_t s_buf;
 
     while (1) {
-      s_buf = * ((const uint64_t *) s);
+      s_buf = read_u64 (s);
       if (HASZERO (s_buf)) break;
-      * ((uint64_t *) d) = s_buf;
+      * ((uint64_alias_t *) d) = s_buf;
       s += 8; d += 8;
     }
 
@@ -42,7 +43,7 @@ char * strcpy (char * restrict d, const char * restrict s) {
   }
 
   /* 2. Read 8 bytes of s */
-  uint64_t s_buf1 = * ((const uint64_t *) s), s_buf2;
+  uint64_t s_buf1 = read_u64 (s), s_buf2;
 
   if (HASZERO (s_buf1)) {
     while (s_buf1 & 0xff) {
@@ -60,10 +61,10 @@ char * strcpy (char * restrict d, const char * restrict s) {
 
   while (1) {
     s += 8;
-    s_buf2 = * ((const uint64_t *) s);
+    s_buf2 = read_u64 (s);
     if (HASZERO (s_buf2)) break;
 
-    * ((uint64_t *) d) = s_buf1 | (s_buf2 << (8 * d_off));
+    * ((uint64_alias_t *) d) = s_buf1 | (s_buf2 << (8 * d_off));
     s_buf1 = s_buf2 >> (8 * (8 - d_off));
     d += 8;
   }
