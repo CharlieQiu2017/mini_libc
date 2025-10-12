@@ -14,7 +14,8 @@ static inline uint32_t uint32_value_barrier (uint32_t input) {
     ""
   : [input_reg] "+r" (input)
   :
-  : );
+  :
+  );
   return input;
 }
 
@@ -23,7 +24,8 @@ static inline uint64_t uint64_value_barrier (uint64_t input) {
     ""
   : [input_reg] "+r" (input)
   :
-  : );
+  :
+  );
   return input;
 }
 
@@ -31,22 +33,24 @@ static inline uint64_t uint64_value_barrier (uint64_t input) {
 static inline uint32_t uint32_to_bool (uint32_t x) {
   uint32_t output;
   __asm__ (
-    "\tcmp %w[input_reg], #0\n"
-    "\tcset %w[output_reg], ne\n"
+    "cmp %w[input_reg], #0\n\t"
+    "cset %w[output_reg], ne"
   : [output_reg] "=r" (output)
   : [input_reg] "r" (x)
-  : "cc" );
+  : "cc"
+  );
   return output;
 }
 
 static inline uint64_t uint64_to_bool (uint64_t x) {
   uint64_t output;
   __asm__ (
-    "\tcmp %[input_reg], #0\n"
-    "\tcset %[output_reg], ne\n"
+    "cmp %[input_reg], #0\n\t"
+    "cset %[output_reg], ne"
   : [output_reg] "=r" (output)
   : [input_reg] "r" (x)
-  : "cc" );
+  : "cc"
+  );
   return output;
 }
 
@@ -54,19 +58,20 @@ static inline uint64_t uint64_to_bool (uint64_t x) {
 static inline uint32_t uint32_cmp_ge_branch (uint32_t x, uint32_t y, uint32_t a, uint32_t b) {
   uint32_t output;
   __asm__ (
-    "\tcmp %w[x_reg], %w[y_reg]\n"
-    "\tcsel %w[output_reg], %w[a_reg], %w[b_reg], hs\n"
+    "cmp %w[x_reg], %w[y_reg]\n\t"
+    "csel %w[output_reg], %w[a_reg], %w[b_reg], hs"
   : [output_reg] "=r" (output)
   : [x_reg] "r" (x), [y_reg] "r" (y), [a_reg] "r" (a), [b_reg] "r" (b)
-  : "cc" );
+  : "cc"
+  );
   return output;
 }
 
 static inline uint64_t uint64_cmp_ge_branch (uint64_t x, uint64_t y, uint64_t a, uint64_t b) {
   uint64_t output;
   __asm__ (
-    "\tcmp %[x_reg], %[y_reg]\n"
-    "\tcsel %[output_reg], %[a_reg], %[b_reg], hs\n"
+    "cmp %[x_reg], %[y_reg]\n\t"
+    "csel %[output_reg], %[a_reg], %[b_reg], hs"
   : [output_reg] "=r" (output)
   : [x_reg] "r" (x), [y_reg] "r" (y), [a_reg] "r" (a), [b_reg] "r" (b)
   : "cc" );
@@ -77,22 +82,24 @@ static inline uint64_t uint64_cmp_ge_branch (uint64_t x, uint64_t y, uint64_t a,
 static inline uint32_t int32_cmp_ge (int32_t a, int32_t b) {
   uint32_t output;
   __asm__ (
-    "\tcmp %w[a_reg], %w[b_reg]\n"
-    "\tcset %w[output_reg], ge\n"
+    "cmp %w[a_reg], %w[b_reg]\n\t"
+    "cset %w[output_reg], ge"
   : [output_reg] "=r" (output)
   : [a_reg] "r" (a), [b_reg] "r" (b)
-  : "cc" );
+  : "cc"
+  );
   return output;
 }
 
 static inline uint64_t int64_cmp_ge (int64_t a, int64_t b) {
   uint64_t output;
   __asm__ (
-    "\tcmp %[a_reg], %[b_reg]\n"
-    "\tcset %[output_reg], ge\n"
+    "cmp %[a_reg], %[b_reg]\n\t"
+    "cset %[output_reg], ge"
   : [output_reg] "=r" (output)
   : [a_reg] "r" (a), [b_reg] "r" (b)
-  : "cc" );
+  : "cc"
+  );
   return output;
 }
 

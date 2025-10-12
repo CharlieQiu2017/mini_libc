@@ -25,7 +25,7 @@
 
 static inline __attribute__((always_inline)) uint64_t read_u64 (const void * ptr) {
   uint64_t ret;
-  __asm__ (
+  __asm__ volatile (
     "ldr %[ret], [%[ptr]]"
   : [ret] "=r" (ret)
   : [ptr] "r" (ptr)

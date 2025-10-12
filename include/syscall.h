@@ -10,7 +10,7 @@ static inline long syscall0 (long number) {
   register long _num __asm__ ("x8") = number;
 
   __asm__ volatile (
-    "svc 0\n"
+    "svc 0"
   : "=r"(_ret)
   : "r" (_num)
   : "memory", "cc"
@@ -24,7 +24,7 @@ static inline long syscall1 (long arg1, long number) {
   register long _num __asm__ ("x8") = number;
 
   __asm__ volatile (
-    "svc 0\n"
+    "svc 0"
   : "=r"(_arg1)
   : "0"(_arg1), "r"(_num)
   : "memory", "cc"
@@ -39,7 +39,7 @@ static inline long syscall2 (long arg1, long arg2, long number) {
   register long _num __asm__ ("x8") = number;
 
   __asm__ volatile (
-    "svc 0\n"
+    "svc 0"
   : "=r"(_arg1)
   : "0"(_arg1), "r"(_arg2), "r"(_num)
   : "memory", "cc"
@@ -55,7 +55,7 @@ static inline long syscall3 (long arg1, long arg2, long arg3, long number) {
   register long _num __asm__ ("x8") = number;
 
   __asm__ volatile (
-    "svc 0\n"
+    "svc 0"
   : "=r"(_arg1)
   : "0"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_num)
   : "memory", "cc"
@@ -72,7 +72,7 @@ static inline long syscall4 (long arg1, long arg2, long arg3, long arg4, long nu
   register long _num __asm__ ("x8") = number;
 
   __asm__ volatile (
-    "svc 0\n"
+    "svc 0"
   : "=r"(_arg1)
   : "0"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4), "r"(_num)
   : "memory", "cc"
@@ -90,7 +90,7 @@ static inline long syscall5 (long arg1, long arg2, long arg3, long arg4, long ar
   register long _num __asm__ ("x8") = number;
 
   __asm__ volatile (
-    "svc 0\n"
+    "svc 0"
   : "=r"(_arg1)
   : "0"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4), "r"(_arg5), "r"(_num)
   : "memory", "cc"
@@ -109,7 +109,7 @@ static inline long syscall6 (long arg1, long arg2, long arg3, long arg4, long ar
   register long _num __asm__ ("x8") = number;
 
   __asm__ volatile (
-    "svc 0\n"
+    "svc 0"
   : "=r"(_arg1)
   : "0"(_arg1), "r"(_arg2), "r"(_arg3), "r"(_arg4), "r"(_arg5), "r"(_arg6), "r"(_num)
   : "memory", "cc"

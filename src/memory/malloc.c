@@ -257,11 +257,11 @@ static void insert_into_free_set_of_arena (void * elem, struct malloc_arena_t * 
 
   /* Swap tail with elem, and store original tail into curr_tail */
   __asm__ volatile (
-    "1:\n"
-    "\tldxr %[load_reg], [%[tail_ptr_reg]]\n"
-    "\tstxr %w[fail_reg], %[new_val_reg], [%[tail_ptr_reg]]\n"
-    "\tcbnz %w[fail_reg], 1b\n"
-    "\tdmb ish\n"
+    "1:\n\t"
+    "ldxr %[load_reg], [%[tail_ptr_reg]]\n\t"
+    "stxr %w[fail_reg], %[new_val_reg], [%[tail_ptr_reg]]\n\t"
+    "cbnz %w[fail_reg], 1b\n\t"
+    "dmb ish"
   : [load_reg] "=&r" (curr_tail), [fail_reg] "=&r" (fail)
   : [tail_ptr_reg] "r" (&arena->free_set_tail), [new_val_reg] "r" (elem)
   : "memory"

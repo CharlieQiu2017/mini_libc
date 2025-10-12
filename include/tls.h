@@ -5,12 +5,12 @@
 
 static inline __attribute__((always_inline)) void * get_thread_pointer (void) {
   void * addr;
-  __asm__ volatile ("mrs %0, tpidr_el0\n" : "=r" (addr));
+  __asm__ volatile ("mrs %0, tpidr_el0" : "=r" (addr));
   return addr;
 }
 
 static inline __attribute__((always_inline)) void set_thread_pointer (void * ptr) {
-  __asm__ volatile ("msr tpidr_el0, %[gs]\n" : : [gs] "r" (ptr) : "memory");
+  __asm__ volatile ("msr tpidr_el0, %[gs]" : : [gs] "r" (ptr) : "memory");
 }
 
 struct malloc_arena_t;

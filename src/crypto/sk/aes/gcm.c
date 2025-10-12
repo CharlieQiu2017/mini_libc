@@ -53,10 +53,11 @@ static inline uint32x4_t gcm_mult (uint32x4_t ghash, uint32x4_t h) {
     "ext %[t1].16b, %[z].16b, %[t0].16b, #8\n\t"
     "eor %[r0].16b, %[r0].16b, %[t1].16b\n\t"
     "ext %[t1].16b, %[t0].16b, %[z].16b, #8\n\t"
-    "eor %[r1].16b, %[r1].16b, %[t1].16b\n\t"
+    "eor %[r1].16b, %[r1].16b, %[t1].16b"
   : [r0] "=&w" (r0), [r1] "=&w" (r1), [t0] "=&w" (t0), [t1] "=&w" (t1)
   : [a] "w" (a), [b] "w" (b), [z] "w" (z)
-  : );
+  :
+  );
 
   /* At this point, the lower 128 bits are stored in r0, and the higher 128 bits are stored in r1 */
 
@@ -70,10 +71,11 @@ static inline uint32x4_t gcm_mult (uint32x4_t ghash, uint32x4_t h) {
     "ext %[t1].16b, %[z].16b, %[t0].16b, #8\n\t"
     "eor %[r0].16b, %[r0].16b, %[t1].16b\n\t"
     "pmull %[t0].1q, %[r1].1d, %[p].1d\n\t"
-    "eor %[a].16b, %[r0].16b, %[t0].16b\n\t"
+    "eor %[a].16b, %[r0].16b, %[t0].16b"
   : [a] "=&w" (a), [r0] "+&w" (r0), [r1] "+&w" (r1), [t0] "=&w" (t0), [t1] "=&w" (t1)
   : [p] "w" (p), [z] "w" (z)
-  : );
+  :
+  );
 
   return a;
 }
