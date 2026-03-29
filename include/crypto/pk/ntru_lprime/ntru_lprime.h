@@ -130,6 +130,8 @@ void ntrulpr_653_hashshort (const unsigned char * input, uint8_t * out);
 
 void ntrulpr_653_gen_key (unsigned char * sk_out, unsigned char * pk_out);
 
+void ntrulpr_653_gen_key_from_seed (unsigned char * sk_out, unsigned char * pk_out);
+
 void ntrulpr_653_encapsulate_internal (const unsigned char * pk, const unsigned char * input, const unsigned char * key_hash_cache, unsigned char * ct_out);
 
 void ntrulpr_653_encapsulate (const unsigned char * pk, unsigned char * ct_out, unsigned char * key_out);

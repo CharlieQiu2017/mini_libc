@@ -9,9 +9,9 @@
 #define NTRU_LPR_SHORT_ENC_LEN ((NTRU_LPR_P - 1) / 4 + 1)
 #define NTRU_LPR_PK_LEN (32 + NTRU_LPR_ROUND_ENC_LEN)
 
-void ntrulpr_653_gen_key (unsigned char * sk_out, unsigned char * pk_out) {
-  /* Generate seed S */
-  getrandom (pk_out, 32, 0);
+/* In some applications such as oblivious transfer, we need to generate a key pair based on a given G polynomial (seed). */
+void ntrulpr_653_gen_key_from_seed (unsigned char * sk_out, unsigned char * pk_out) {
+  /* We assume the seed for G is already written into pk_out (first 32 bytes) */
 
   /* Expand S to G */
   uint16_t g[NTRU_LPR_P];
@@ -49,4 +49,12 @@ void ntrulpr_653_gen_key (unsigned char * sk_out, unsigned char * pk_out) {
   sponge_keccak_1600_squeeze (state, &curr_offset, sk_out + NTRU_LPR_SHORT_ENC_LEN + NTRU_LPR_PK_LEN + 32, 32, 72);
 
   return;
+}
+
+void ntrulpr_653_gen_key (unsigned char * sk_out, unsigned char * pk_out) {
+  /* Generate seed S */
+  getrandom (pk_out, 32, 0);
+
+  /* Generate keypair from seed */
+  ntrulpr_653_gen_key_from_seed (sk_out, pk_out);
 }
