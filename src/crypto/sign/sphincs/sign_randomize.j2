@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <string.h>
+#include <random.h>
 #include <crypto/sign/sphincs/params/common.h>
 #include <crypto/sign/sphincs/hash.h>
 #include <crypto/sign/sphincs/fors.h>
@@ -10,7 +11,7 @@
 
 #include <crypto/sign/sphincs/params/params_{{ inst.secbit }}_{{ inst.hash }}.h>
 
-void sphincs_{{ inst.secbit }}_{{ inst.hash }}_sign (const unsigned char * sk, const unsigned char * msg, size_t msg_len, unsigned char * out) {
+void sphincs_{{ inst.secbit }}_{{ inst.hash }}_sign_randomize (const unsigned char * sk, const unsigned char * msg, size_t msg_len, unsigned char * out) {
   const unsigned char * sk_seed = sk;
   const unsigned char * sk_prf = sk + SPHINCS_N;
   const unsigned char * pk_seed = sk + 2 * SPHINCS_N;
@@ -18,7 +19,9 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_sign (const unsigned char * sk, c
 
   /* Generate randomness */
   unsigned char r[SPHINCS_N];
-  sphincs_hash_prf_msg (sk_prf, pk_seed, msg, msg_len, r);
+  unsigned char rand[SPHINCS_N];
+  getrandom (rand, SPHINCS_N, 0);
+  sphincs_hash_prf_msg (sk_prf, rand, msg, msg_len, r);
 
   for (uint32_t i = 0; i < SPHINCS_N; ++i) out[i] = r[i];
 
