@@ -1,0 +1,6 @@
+{
+  "insts": [
+    { "secbit": "128f", "hash": "shake_simple" }
+  ],
+  "_comment": "The definition of fors_msg_to_indices() depends only on secbit, not on the hash function. Therefore for each secbit, including only one hash function is sufficient."
+}

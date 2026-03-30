@@ -1,0 +1,43 @@
+#include <stdint.h>
+
+/* msg: SPHINCS_MD_BYTES bytes, no assumptions, no data dependence
+   indices: SPHINCS_K elements
+ */
+
+/* This implementation follows the FIPS 205 specification,
+   which is NOT compatible with SPHINCS+ Submission Version 3.1.
+   See FIPS 205 Appendix A, and Algorithm 17 in Submission Version 3.1.
+
+   Suppose you are given a bit-string of 16 bits, and you want to extract 12 bits.
+   | 7  6  5  4  3  2  1  0 | 7  6  5  4  3  2  1  0 |
+   |    First    byte       |     Second      byte   |
+
+   In the Submission version, the lower 8 bits would be the first byte of the bit-string,
+   and the higher 4 bits would be the lower 4 bits of the second byte of the bit-string.
+   In the FIPS 205 version, the lower 4 bits would be the higher 4 bits of the second byte,
+   and the higher 8 bits would be the first byte of the bit-string.
+ */
+
+{% for inst in insts %}
+
+#include <crypto/sign/sphincs/params/params_{{ inst.secbit }}_{{ inst.hash }}.h>
+
+void sphincs_{{ inst.secbit }}_fors_msg_to_indices (const unsigned char * msg, uint16_t * indices) {
+  uint32_t offset = 0;
+  uint64_t c = 0;
+  uint32_t rem_bits = 0;
+
+  for (uint32_t i = 0; i < SPHINCS_K; ++i) {
+    while (rem_bits < SPHINCS_A) {
+      c = (c << 8) + msg[offset++];
+      rem_bits += 8;
+    }
+    indices[i] = c >> (rem_bits - SPHINCS_A);
+    c &= (1ull << (rem_bits - SPHINCS_A)) - 1;
+    rem_bits -= SPHINCS_A;
+  }
+}
+
+#include <crypto/sign/sphincs/params/clear.h>
+
+{% endfor %}

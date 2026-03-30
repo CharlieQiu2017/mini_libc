@@ -1,0 +1,6 @@
+{
+  "insts": [
+    { "name": "keccak_p_1600_permute", "r": 24 },
+    { "name": "keccak_p_1600_6_permute", "r": 6 }
+  ]
+}

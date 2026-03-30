@@ -1,0 +1,114 @@
+/* SANE mode of Farfalle
+   Requires user to provide nonce at beginning of each session.
+   Nonce does not need to be unpredictable, but needs to be unique.
+ */
+
+#include <string.h>
+#include <crypto/common.h>
+#include <crypto/sk/farfalle/farfalle.h>
+#include <crypto/sk/farfalle/farfalle_helper.h>
+#include <crypto/sk/farfalle/sane.h>
+
+{% for inst in insts %}
+
+#include <crypto/sk/farfalle/params/{{ inst.name }}.h>
+
+{% for init_len in init_len_list %}
+
+void farfalle_{{ inst.name }}_sane_{{ init_len }}_init (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * k, size_t tag_len) {
+  farfalle_{{ inst.name }}_{{ init_len }}_init (&st->fst, k);
+  st->tag_len = tag_len;
+}
+
+{% endfor %}
+
+void farfalle_{{ inst.name }}_sane_start_session_common (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * nonce, size_t nonce_len) {
+  farfalle_{{ inst.name }}_reset (&st->fst);
+  farfalle_{{ inst.name }}_add_string (&st->fst, nonce, nonce_len);
+  st->parity = 0;
+  farfalle_{{ inst.name }}_begin_extract (&st->fst);
+}
+
+void farfalle_{{ inst.name }}_sane_start_session (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * nonce, size_t nonce_len) {
+  farfalle_{{ inst.name }}_sane_start_session_common (st, nonce, nonce_len);
+  farfalle_{{ inst.name }}_skip_output (&st->fst, st->tag_len);
+}
+
+void farfalle_{{ inst.name }}_sane_start_session_with_tag (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * nonce, size_t nonce_len, unsigned char * tag_out) {
+  farfalle_{{ inst.name }}_sane_start_session_common (st, nonce, nonce_len);
+  farfalle_{{ inst.name }}_extract (&st->fst, tag_out, st->tag_len);
+}
+
+uint64_t farfalle_{{ inst.name }}_sane_start_session_check_tag (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * nonce, size_t nonce_len, const unsigned char * tag) {
+  farfalle_{{ inst.name }}_sane_start_session_common (st, nonce, nonce_len);
+  return farfalle_{{ inst.name }}_extract_and_compare (&st->fst, tag, st->tag_len);
+}
+
+void farfalle_{{ inst.name }}_sane_wrap (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * msg, size_t msg_len, const unsigned char * meta, size_t meta_len, unsigned char * ct_out, unsigned char * tag_out) {
+  farfalle_{{ inst.name }}_extract (&st->fst, ct_out, msg_len);
+  for (uint32_t i = 0; i < msg_len; ++i) ct_out[i] ^= msg[i];
+
+  struct farfalle_{{ inst.name }}_helper_state hst;
+
+  if (meta_len > 0 || msg_len == 0) {
+    unsigned char final_byte = st->parity * 2;
+    farfalle_{{ inst.name }}_helper_init (&hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, meta, meta_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+  }
+
+  if (msg_len > 0) {
+    unsigned char final_byte = st->parity * 2 + 1;
+    farfalle_{{ inst.name }}_helper_init (&hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, ct_out, msg_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+  }
+
+  farfalle_{{ inst.name }}_begin_extract (&st->fst);
+  farfalle_{{ inst.name }}_extract (&st->fst, tag_out, st->tag_len);
+
+  st->parity ^= 1;
+}
+
+unsigned char farfalle_{{ inst.name }}_sane_unwrap (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * ct, size_t ct_len, const unsigned char * meta, size_t meta_len, const unsigned char * tag, unsigned char * msg_out) {
+  /* Backup state in case unwrapping fails */
+  struct farfalle_{{ inst.name }}_state st_bak = st->fst;
+
+  farfalle_{{ inst.name }}_extract (&st->fst, msg_out, ct_len);
+  for (uint32_t i = 0; i < ct_len; ++i) msg_out[i] ^= ct[i];
+
+  struct farfalle_{{ inst.name }}_helper_state hst;
+
+  if (meta_len > 0 || ct_len == 0) {
+    unsigned char final_byte = st->parity * 2;
+    farfalle_{{ inst.name }}_helper_init (&hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, meta, meta_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+  }
+
+  if (ct_len > 0) {
+    unsigned char final_byte = st->parity * 2 + 1;
+    farfalle_{{ inst.name }}_helper_init (&hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, ct, ct_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+  }
+
+  farfalle_{{ inst.name }}_begin_extract (&st->fst);
+  unsigned char result = uint64_to_bool (farfalle_{{ inst.name }}_extract_and_compare (&st->fst, tag, st->tag_len));
+
+  /* If result != 0, rollback state */
+  /* Otherwise, keep current state, flip parity */
+
+  cond_memcpy (result, &st->fst, &st_bak, sizeof (struct farfalle_{{ inst.name }}_state));
+  st->parity ^= 1 - result;
+
+  return result;
+}
+
+#include <crypto/sk/farfalle/params/clear.h>
+
+{% endfor %}

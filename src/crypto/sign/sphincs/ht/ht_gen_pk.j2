@@ -1,0 +1,17 @@
+#include <stdint.h>
+#include <crypto/sign/sphincs/params/common.h>
+#include <crypto/sign/sphincs/adrs.h>
+#include <crypto/sign/sphincs/xmss.h>
+#include <crypto/sign/sphincs/ht.h>
+
+{% for inst in insts %}
+
+#include <crypto/sign/sphincs/params/params_{{ inst.secbit }}_{{ inst.hash }}.h>
+
+void sphincs_{{ inst.secbit }}_{{ inst.hash }}_ht_gen_pk (const unsigned char * pk_seed, const unsigned char * sk_seed, unsigned char * pk_out) {
+  sphincs_xmss_gen_pk (pk_seed, sk_seed, SPHINCS_D - 1, 0, pk_out);
+}
+
+#include <crypto/sign/sphincs/params/clear.h>
+
+{% endfor %}

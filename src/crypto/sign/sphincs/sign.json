@@ -1,0 +1,5 @@
+{
+  "insts": [
+    { "secbit": "128f", "hash": "shake_simple" }
+  ]
+}

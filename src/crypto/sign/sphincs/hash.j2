@@ -1,0 +1,75 @@
+#include <stdint.h>
+#include <crypto/hash/keccak/keccak_p.h>
+#include <crypto/sign/sphincs/hash.h>
+
+{% for inst in insts %}
+
+void sphincs_shake_h_msg_{{ inst.seclen }} (const unsigned char * r, const unsigned char * pk_seed, const unsigned char * pk_root, const unsigned char * msg, size_t msg_len, unsigned char * out, size_t out_len) {
+  uint64_t state[25] = {0};
+  uint32_t curr_offset = 0;
+  sponge_keccak_1600_absorb (state, &curr_offset, r, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, pk_seed, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, pk_root, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, msg, msg_len, 136);
+  sponge_keccak_1600_finalize (state, curr_offset, 15 + 16, 136);
+  curr_offset = 0;
+  sponge_keccak_1600_squeeze (state, &curr_offset, out, out_len, 136);
+}
+
+void sphincs_shake_prf_{{ inst.seclen }} (const unsigned char * pk_seed, const unsigned char * sk_seed, const uint32_t * adrs, unsigned char * out) {
+  uint64_t state[25] = {0};
+  uint32_t curr_offset = 0;
+  sponge_keccak_1600_absorb (state, &curr_offset, pk_seed, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, (const unsigned char *) adrs, 32, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, sk_seed, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_finalize (state, curr_offset, 15 + 16, 136);
+  curr_offset = 0;
+  sponge_keccak_1600_squeeze (state, &curr_offset, out, {{ inst.seclen }}, 136);
+}
+
+void sphincs_shake_prf_msg_{{ inst.seclen }} (const unsigned char * sk_prf, const unsigned char * optrand, const unsigned char * msg, size_t msg_len, unsigned char * out) {
+  uint64_t state[25] = {0};
+  uint32_t curr_offset = 0;
+  sponge_keccak_1600_absorb (state, &curr_offset, sk_prf, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, optrand, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, msg, msg_len, 136);
+  sponge_keccak_1600_finalize (state, curr_offset, 15 + 16, 136);
+  curr_offset = 0;
+  sponge_keccak_1600_squeeze (state, &curr_offset, out, {{ inst.seclen }}, 136);
+}
+
+void sphincs_shake_simple_f_{{ inst.seclen }} (const unsigned char * pk_seed, const uint32_t * adrs, const unsigned char * msg, unsigned char * out) {
+  uint64_t state[25] = {0};
+  uint32_t curr_offset = 0;
+  sponge_keccak_1600_absorb (state, &curr_offset, pk_seed, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, (const unsigned char *) adrs, 32, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, msg, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_finalize (state, curr_offset, 15 + 16, 136);
+  curr_offset = 0;
+  sponge_keccak_1600_squeeze (state, &curr_offset, out, {{ inst.seclen }}, 136);
+}
+
+void sphincs_shake_simple_h_{{ inst.seclen }} (const unsigned char * pk_seed, const uint32_t * adrs, const unsigned char * msg1, const unsigned char * msg2, unsigned char * out) {
+  uint64_t state[25] = {0};
+  uint32_t curr_offset = 0;
+  sponge_keccak_1600_absorb (state, &curr_offset, pk_seed, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, (const unsigned char *) adrs, 32, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, msg1, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, msg2, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_finalize (state, curr_offset, 15 + 16, 136);
+  curr_offset = 0;
+  sponge_keccak_1600_squeeze (state, &curr_offset, out, {{ inst.seclen }}, 136);
+}
+
+void sphincs_shake_simple_t_{{ inst.seclen }} (const unsigned char * pk_seed, const uint32_t * adrs, const unsigned char * msg, size_t msg_len, unsigned char * out) {
+  uint64_t state[25] = {0};
+  uint32_t curr_offset = 0;
+  sponge_keccak_1600_absorb (state, &curr_offset, pk_seed, {{ inst.seclen }}, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, (const unsigned char *) adrs, 32, 136);
+  sponge_keccak_1600_absorb (state, &curr_offset, msg, msg_len * {{ inst.seclen }}, 136);
+  sponge_keccak_1600_finalize (state, curr_offset, 15 + 16, 136);
+  curr_offset = 0;
+  sponge_keccak_1600_squeeze (state, &curr_offset, out, {{ inst.seclen }}, 136);
+}
+
+{% endfor %}

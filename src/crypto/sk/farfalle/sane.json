@@ -1,0 +1,6 @@
+{
+  "insts": [
+    { "name": "kravatte" }
+  ],
+  "init_len_list": ["16", "24", "32"]
+}
