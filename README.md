@@ -9,9 +9,11 @@ We only target AArch64 since that is the platform I intend to do kernel experime
 ## Building
 
 1. Install `aarch64-none-elf` toolchain from https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads.
-2. Modify `Makefile` so it correctly points to the installed toolchain.
-3. Invoke `make` to build without optimization. Invoke `make optimize=1` to build with optimization `-Os`.
+2. Install Python packages [Jinja2](https://pypi.org/project/Jinja2/) and [jinja2-cli](https://pypi.org/project/Jinja2/).
+3. Modify `Makefile` so it correctly points to the installed toolchain.
+4. Invoke `make` to build without optimization. Invoke `make optimize=1` to build with optimization `-Os`.
 Invoke `make debug=1` to build with debug information.
+If `debug=1` is set, one can additionally set `DEBUG_SRC_DIR` to a path where the source code of the library will be installed on the debugging machine.
 
 Output files:
 * `crt.o`: Initialization object, link it into every executable.
@@ -37,7 +39,7 @@ However, the other cryptographic extensions including SHA2, SHA3 are not support
 * In some cases we need to implement multiple instances of the same algorithm with different parameters.
 This is particularly frequent in the cryptographic library.
 While C macros can help avoiding code duplication, it is inconvenient for debugging because one cannot step through each line of a macro.
-Therefore, we use the M4 preprocessor to generate source code for the different instances.
+Therefore, we use the Jinja2 preprocessor to generate source code for the different instances.
 
 ## Threading
 
