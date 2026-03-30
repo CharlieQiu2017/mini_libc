@@ -24,11 +24,11 @@ void keccak_p_1600_permute (uint64_t * state);
 void keccak_p_1600_6_permute (uint64_t * state);
 
 /* Since we assume little-endian architecture, simply treat state as a sequence of bytes */
-static inline __attribute__((always_inline)) void keccak_p_1600_extract_bytes (const uint64_t * state, unsigned char * data, uint32_t offset, uint32_t length) {
+static inline void keccak_p_1600_extract_bytes (const uint64_t * state, unsigned char * data, uint32_t offset, uint32_t length) {
   memcpy (data, ((unsigned char *) state) + offset, length);
 }
 
-static inline __attribute__((always_inline)) void keccak_p_1600_xor_bytes (uint64_t * state, const unsigned char * data, uint32_t offset, uint32_t length) {
+static inline void keccak_p_1600_xor_bytes (uint64_t * state, const unsigned char * data, uint32_t offset, uint32_t length) {
   memxor (((unsigned char *) state) + offset, data, length);
 }
 
@@ -37,7 +37,7 @@ static inline __attribute__((always_inline)) void keccak_p_1600_xor_bytes (uint6
    The relation between "rate" and "capacity" is rate + capacity = 1600 bits.
  */
 
-static inline __attribute__((always_inline)) void sponge_keccak_1600_absorb (uint64_t * state, uint32_t * curr_offset, const unsigned char * data, size_t len, uint32_t rate) {
+static inline void sponge_keccak_1600_absorb (uint64_t * state, uint32_t * curr_offset, const unsigned char * data, size_t len, uint32_t rate) {
   uint32_t t = rate - *curr_offset;
   if (len < t) {
     keccak_p_1600_xor_bytes (state, data, *curr_offset, len);
@@ -61,7 +61,7 @@ static inline __attribute__((always_inline)) void sponge_keccak_1600_absorb (uin
   *curr_offset = len;
 }
 
-static inline __attribute__((always_inline)) void sponge_keccak_1600_finalize (uint64_t * state, uint32_t curr_offset, unsigned char final_byte, uint32_t rate) {
+static inline void sponge_keccak_1600_finalize (uint64_t * state, uint32_t curr_offset, unsigned char final_byte, uint32_t rate) {
   if (curr_offset < rate - 1) {
     keccak_p_1600_xor_bytes (state, &final_byte, curr_offset, 1);
     final_byte = 128;
@@ -74,7 +74,7 @@ static inline __attribute__((always_inline)) void sponge_keccak_1600_finalize (u
   keccak_p_1600_permute (state);
 }
 
-static inline __attribute__((always_inline)) void sponge_keccak_1600_squeeze (uint64_t * state, uint32_t * curr_offset, unsigned char * out, size_t out_len, uint32_t rate) {
+static inline void sponge_keccak_1600_squeeze (uint64_t * state, uint32_t * curr_offset, unsigned char * out, size_t out_len, uint32_t rate) {
   if (*curr_offset == rate) {
     keccak_p_1600_permute (state);
     *curr_offset = 0;
