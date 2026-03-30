@@ -7,7 +7,7 @@
 #ifndef TIME_H
 #define TIME_H
 
-#include <io.h>
+#include <io_types.h>
 
 #ifdef __cplusplus
 extern "C" {

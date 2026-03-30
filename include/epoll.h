@@ -6,7 +6,7 @@
 #define EPOLL_H
 
 #include <stdint.h>
-#include <io.h>
+#include <io_types.h>
 #include <ioctl.h>
 
 #ifdef __cplusplus

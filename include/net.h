@@ -37,9 +37,10 @@
 #ifndef NET_H
 #define NET_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <multiuser_types.h>
-#include <io.h>
+#include <io_types.h>
 
 #ifdef __cplusplus
 extern "C" {

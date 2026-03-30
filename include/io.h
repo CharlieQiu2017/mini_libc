@@ -10,13 +10,11 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <io_types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef int fd_t;
-typedef unsigned short umode_t;
 
 ssize_t read (fd_t fd, void * buf, size_t count);
 ssize_t write (fd_t fd, const void * buf, size_t count);
