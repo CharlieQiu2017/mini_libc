@@ -47,10 +47,17 @@ aligned_s_end_flag:
   /* 2. Read 8 bytes of s */
   uint64_t s_buf1 = read_u64 (s), s_buf2, s_buf3;
 
-  /* 3. Write (8 - d_off) bytes to d, so that d is now aligned */
+  if (HASZERO (s_buf1)) {
+    while (n && (s_buf1 & 0xff)) { dp = ptr_from_uint (d); *dp = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
+    return d - orig_d;
+  }
+
+  /* 3. Write (8 - d_off) bytes to d, so that d is now aligned.
+     Since we checked HASZERO(s_buf1) above, we do not need to check for NUL here.
+   */
 
   uint32_t i = 8 - d_off;
-  while (i && n && (s_buf1 & 0xff)) {
+  while (i && n) {
     dp = ptr_from_uint (d);
     *dp = s_buf1 & 0xff;
     s_buf1 >>= 8; d++; i--; n--;

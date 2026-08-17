@@ -50,10 +50,26 @@ aligned_end_flag:
   r_buf = read_u64 (r - r_off);
   r_buf >>= 8 * r_off;
 
-  /* 3. Compare the next (8 - r_off) bytes */
+  /* If l_buf contains NUL, directly compare remaining bytes. */
+  if (HASZERO (l_buf)) {
+    uint32_t i = 8 - r_off;
+    while (i && n && (l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; i--; n--; }
+    if (!n) return 0;
+    if (i) return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
+
+    /* If we reach this point, we will encounter NUL in l_buf within r_off bytes, and r_off < 8. */
+    r_buf = read_u64 (r - r_off + 8);
+    while (n && (l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; n--; }
+    if (!n) return 0;
+    return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
+  }
+
+  /* 3. Compare the next (8 - r_off) bytes.
+     Since we checked HASZERO(l_buf) above, l_buf has no NUL byte.
+   */
 
   uint32_t i = 8 - r_off;
-  while (i && n && (l_buf & 0xff) && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; i--; n--; }
+  while (i && n && (l_buf & 0xff) == (r_buf & 0xff)) { l_buf >>= 8; r_buf >>= 8; i--; n--; }
   if (!n) return 0;
   if (i) return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
 
