@@ -76,7 +76,7 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
     n -= 8;
   }
 
-  if (!n) return 0;
+  if (!n) return result;
 
   if (n <= r_off) l_buf2 = 0; else l_buf2 = read_u64 (l);
   r_buf = read_u64 (r);
