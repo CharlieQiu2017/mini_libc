@@ -80,7 +80,7 @@ static inline void sponge_keccak_1600_squeeze (uint64_t * state, uint32_t * curr
     *curr_offset = 0;
   }
 
-  if (out_len < rate - *curr_offset) {
+  if (out_len <= rate - *curr_offset) {
     keccak_p_1600_extract_bytes (state, out, *curr_offset, out_len);
     *curr_offset += out_len;
     return;
@@ -88,6 +88,7 @@ static inline void sponge_keccak_1600_squeeze (uint64_t * state, uint32_t * curr
 
   uint32_t t = rate - *curr_offset;
   keccak_p_1600_extract_bytes (state, out, *curr_offset, t);
+  keccak_p_1600_permute (state);
   out += t;
   out_len -= t;
 

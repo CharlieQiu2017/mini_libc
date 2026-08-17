@@ -131,7 +131,8 @@ void cshake256 (const unsigned char * str_n, size_t str_n_len, const unsigned ch
 }
 
 void cshake128_xof_prepare (uint64_t * state, const unsigned char * str_n, size_t str_n_len, const unsigned char * str_s, size_t str_s_len, const unsigned char * data, size_t len) {
-  if (str_n_len != 0 || str_s_len != 0) cshake_prepare_state (state, str_n, str_n_len, str_s, str_s_len, 168);
+  if (str_n_len == 0 && str_s_len == 0) { shake128_xof_prepare (state, data, len); return; }
+  cshake_prepare_state (state, str_n, str_n_len, str_s, str_s_len, 168);
   sha3_prepare_msg (state, data, len, 0 + 4, 168);
 }
 
@@ -140,7 +141,8 @@ void cshake128_xof_squeeze (uint64_t * state, uint32_t * curr_offset, unsigned c
 }
 
 void cshake256_xof_prepare (uint64_t * state, const unsigned char * str_n, size_t str_n_len, const unsigned char * str_s, size_t str_s_len, const unsigned char * data, size_t len) {
-  if (str_n_len != 0 || str_s_len != 0) cshake_prepare_state (state, str_n, str_n_len, str_s, str_s_len, 136);
+  if (str_n_len == 0 && str_s_len == 0) { shake256_xof_prepare (state, data, len); return; }
+  cshake_prepare_state (state, str_n, str_n_len, str_s, str_s_len, 136);
   sha3_prepare_msg (state, data, len, 0 + 4, 136);
 }
 
