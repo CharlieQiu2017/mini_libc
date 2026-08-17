@@ -7,18 +7,19 @@
 #include <string_internal.h>
 
 void * memset (void * dest, uint32_t c, size_t n) {
-  unsigned char * d = dest;
+  uintptr_t d = (uintptr_t) dest;
+  unsigned char * dp;
   c &= 0xff;
   uint64_t c_long = ((uint64_t) c) * 0x0101010101010101;
 
-  while (n && ((uintptr_t) d & 7)) { *d = c; d++; n--; }
+  while (n && (d & 7)) { dp = ptr_from_uint (d); *dp = c; d++; n--; }
 
   while (n >= 8) {
-    *((uint64_alias_t *) d) = c_long;
+    write_u64 (d, c_long);
     d += 8; n -= 8;
   }
 
-  while (n) { *d = c; d++; n--; }
+  while (n) { dp = ptr_from_uint (d); *dp = c; d++; n--; }
 
   return dest;
 }

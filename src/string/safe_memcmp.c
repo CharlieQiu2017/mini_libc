@@ -11,15 +11,17 @@
 #include <string_internal.h>
 
 uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
-  const unsigned char * l = vl, * r = vr;
+  uintptr_t l = (uintptr_t) vl, r = (uintptr_t) vr;
   uint64_t result = 0;
 
-  while (n && ((uintptr_t) l & 7)) { result |= *l ^ *r; l++; r++; n--; }
+  const unsigned char * lp;
+  const unsigned char * rp;
+  while (n && (l & 7)) { lp = const_ptr_from_uint (l); rp = const_ptr_from_uint (r); result |= *lp ^ *rp; l++; r++; n--; }
   if (!n) return result;
 
   uint64_t l_buf, l_buf2, l_buf3, r_buf, mask;
 
-  if (((uintptr_t) r & 7) == 0) {
+  if ((r & 7) == 0) {
     while (n >= 8) {
       l_buf = read_u64 (l);
       r_buf = read_u64 (r);
@@ -41,7 +43,7 @@ uint64_t safe_memcmp (const void * vl, const void * vr, size_t n) {
     return result;
   }
 
-  uint32_t r_off = (uintptr_t) r & 7;
+  uint32_t r_off = r & 7;
   l_buf = read_u64 (l);
   r_buf = read_u64 (r - r_off);
   r_buf >>= 8 * r_off;

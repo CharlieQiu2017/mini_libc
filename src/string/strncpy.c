@@ -7,14 +7,19 @@
 #define HIGHS (ONES * 128)
 #define HASZERO(x) (((x) - ONES) & ~ (x) & HIGHS)
 
-static size_t strncpy_internal (char * restrict d, const char * restrict s, size_t n) {
-  char * orig_d = d;
+static size_t strncpy_internal (char * restrict dest, const char * restrict src, size_t n) {
+  uintptr_t orig_d = (uintptr_t) dest;
+  uintptr_t d = (uintptr_t) dest;
+  uintptr_t s = (uintptr_t) src;
+
+  const unsigned char * sp = const_ptr_from_uint (s);
+  unsigned char * dp = ptr_from_uint (d);
 
   /* 1. Align s */
-  while (n && ((uintptr_t) s & 7) && *s) { *d = *s; s++; d++; n--; }
-  if (!n || *s == 0) return d - orig_d;
+  while (n && (s & 7) && *sp) { *dp = *sp; s++; d++; n--; sp = const_ptr_from_uint (s); dp = ptr_from_uint (d); }
+  if (!n || *sp == 0) return d - orig_d;
 
-  uint32_t d_off = (uintptr_t) d & 7;
+  uint32_t d_off = d & 7;
 
   if (d_off == 0) {
     /* 2. Read 8 bytes of s at once and write to d */
@@ -23,19 +28,19 @@ static size_t strncpy_internal (char * restrict d, const char * restrict s, size
     while (n >= 8) {
       s_buf = read_u64 (s);
       if (HASZERO (s_buf)) goto aligned_s_end_flag;
-      * ((uint64_alias_t *) d) = s_buf;
+      write_u64 (d, s_buf);
       s += 8; d += 8; n -= 8;
     }
 
     if (!n) return d - orig_d;
 
     s_buf = read_u64 (s);
-    while (n && (s_buf & 0xff)) { *d = s_buf & 0xff; s_buf >>= 8; d++; n--; }
+    while (n && (s_buf & 0xff)) { dp = ptr_from_uint (d); *dp = s_buf & 0xff; s_buf >>= 8; d++; n--; }
     return d - orig_d;
 
 aligned_s_end_flag:
     /* If this line is reached, s_buf contains NUL byte */
-    while (s_buf & 0xff) { *d = s_buf & 0xff; s_buf >>= 8; d++; }
+    while (s_buf & 0xff) { dp = ptr_from_uint (d); *dp = s_buf & 0xff; s_buf >>= 8; d++; }
     return d - orig_d;
   }
 
@@ -46,7 +51,8 @@ aligned_s_end_flag:
 
   uint32_t i = 8 - d_off;
   while (i && n && (s_buf1 & 0xff)) {
-    *d = s_buf1 & 0xff;
+    dp = ptr_from_uint (d);
+    *dp = s_buf1 & 0xff;
     s_buf1 >>= 8; d++; i--; n--;
   }
 
@@ -59,7 +65,7 @@ aligned_s_end_flag:
     s_buf3 = s_buf1 | (s_buf2 << (8 * d_off));
     if (HASZERO (s_buf2)) goto s_end_flag;
 
-    * ((uint64_alias_t *) d) = s_buf3;
+    write_u64 (d, s_buf3);
     s_buf1 = s_buf2 >> (8 * (8 - d_off));
     d += 8; n -= 8;
   }
@@ -69,22 +75,22 @@ aligned_s_end_flag:
   /* 5. Finish final bytes */
 
   i = d_off;
-  while (i && n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; i--; n--; }
+  while (i && n && (s_buf1 & 0xff)) { dp = ptr_from_uint (d); *dp = s_buf1 & 0xff; s_buf1 >>= 8; d++; i--; n--; }
   if (i || !n) return d - orig_d;
 
   s += 8; s_buf1 = read_u64 (s);
-  while (n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
+  while (n && (s_buf1 & 0xff)) { dp = ptr_from_uint (d); *dp = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
   return d - orig_d;
 
 s_end_flag:
   i = 8;
-  while (i && (s_buf3 & 0xff)) { *d = s_buf3 & 0xff; s_buf3 >>= 8; d++; i--; }
+  while (i && (s_buf3 & 0xff)) { dp = ptr_from_uint (d); *dp = s_buf3 & 0xff; s_buf3 >>= 8; d++; i--; }
   if (i) return d - orig_d;
 
   s_buf1 = s_buf2 >> (8 * (8 - d_off));
   n -= 8;
 
-  while (n && (s_buf1 & 0xff)) { *d = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
+  while (n && (s_buf1 & 0xff)) { dp = ptr_from_uint (d); *dp = s_buf1 & 0xff; s_buf1 >>= 8; d++; n--; }
   return d - orig_d;
 }
 

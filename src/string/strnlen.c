@@ -7,12 +7,14 @@
 #define HIGHS (ONES * 128) /* 0x8080808080808080 */
 #define HASZERO(x) (((x) - ONES) & ~ (x) & HIGHS)
 
-size_t strnlen (const char * s, size_t n) {
+size_t strnlen (const char * str, size_t n) {
   /* 1. Store the initial position */
-  const char * orig_s = s;
+  uintptr_t orig_s = (uintptr_t) str;
+  uintptr_t s = (uintptr_t) str;
+  const unsigned char * sp;
 
   /* 2. Check for NUL until s is aligned */
-  while (n && ((uintptr_t) s & 7)) { if (*s == 0) return s - orig_s; s++; n--; }
+  while (n && (s & 7)) { sp = const_ptr_from_uint (s); if (*sp == 0) return s - orig_s; s++; n--; }
 
   if (!n) return s - orig_s;
 

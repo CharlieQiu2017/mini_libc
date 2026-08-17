@@ -11,8 +11,10 @@
 #include <string_internal.h>
 
 void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, size_t n) {
-  const unsigned char * s = (const unsigned char *) vs;
-  unsigned char * d = (unsigned char *) vd;
+  uintptr_t s = (uintptr_t) vs;
+  uintptr_t d = (uintptr_t) vd;
+  const unsigned char * sp;
+  unsigned char * dp;
 
   uint8_t mask_src = cond * 0xff;
   uint8_t mask_dst = (1 - cond) * 0xff;
@@ -20,8 +22,10 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
   uint64_t mask_src_long = cond * ((uint64_t) -1);
   uint64_t mask_dst_long = (1 - cond) * ((uint64_t) -1);
 
-  while (n && ((uintptr_t) s & 7)) {
-    *d = (*d & mask_dst) | (*s & mask_src);
+  while (n && (s & 7)) {
+    sp = const_ptr_from_uint (s);
+    dp = ptr_from_uint (d);
+    *dp = (*dp & mask_dst) | (*sp & mask_src);
     s++; d++; n--;
   }
 
@@ -29,12 +33,12 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
 
   uint64_t s_buf, s_buf2, s_buf3, d_buf;
 
-  if (((uintptr_t) d & 7) == 0) {
+  if ((d & 7) == 0) {
     while (n >= 8) {
       s_buf = read_u64 (s);
       d_buf = read_u64 (d);
       d_buf = (s_buf & mask_src_long) | (d_buf & mask_dst_long);
-      * ((uint64_alias_t *) d) = d_buf;
+      write_u64 (d, d_buf);
 
       s += 8; d += 8; n -= 8;
     }
@@ -46,21 +50,22 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
     d_buf = (s_buf & mask_src_long) | (d_buf & mask_dst_long);
 
     while (n) {
-      *d = d_buf & 0xff;
+      dp = ptr_from_uint (d);
+      *dp = d_buf & 0xff;
       d_buf >>= 8; d++; n--;
     }
 
     return;
   }
 
-  uint32_t d_off = (uintptr_t) d & 7;
+  uint32_t d_off = d & 7;
   s_buf = read_u64 (s);
   d_buf = read_u64 (d - d_off);
   d_buf >>= 8 * d_off;
   d_buf = (s_buf & mask_src_long) | (d_buf & mask_dst_long);
 
   uint32_t i = 8 - d_off;
-  while (i && n) { *d = d_buf & 0xff; d_buf >>= 8; d++; i--; n--; }
+  while (i && n) { dp = ptr_from_uint (d); *dp = d_buf & 0xff; d_buf >>= 8; d++; i--; n--; }
   if (!n) return;
   s_buf >>= 8 * (8 - d_off);
   s += 8;
@@ -70,7 +75,7 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
     d_buf = read_u64 (d);
     s_buf3 = s_buf | (s_buf2 << (8 * d_off));
     d_buf = (s_buf3 & mask_src_long) | (d_buf & mask_dst_long);
-    * ((uint64_alias_t *) d) = d_buf;
+    write_u64 (d, d_buf);
 
     s_buf = s_buf2 >> 8 * (8 - d_off);
     s += 8; d += 8; n -= 8;
@@ -84,7 +89,8 @@ void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, si
   d_buf = (s_buf3 & mask_src_long) | (d_buf & mask_dst_long);
 
   while (n) {
-    *d = d_buf & 0xff;
+    dp = ptr_from_uint (d);
+    *dp = d_buf & 0xff;
     d++; d_buf >>= 8; n--;
   }
 

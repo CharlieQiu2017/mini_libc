@@ -11,18 +11,24 @@
 #define HASZERO(x) (((x) - ONES) & ~ (x) & HIGHS)
 
 int32_t strcmp (const char * sl, const char * sr) {
-  const unsigned char * l = (const unsigned char *) sl;
-  const unsigned char * r = (const unsigned char *) sr;
+  uintptr_t l = (uintptr_t) sl;
+  uintptr_t r = (uintptr_t) sr;
 
   /* 1. Compare initial bytes until L is aligned */
-  while (((uintptr_t) l & 7) && *l && *l == *r) { ++l; ++r; }
-  if (*l != *r) { return ((int32_t) *l) - ((int32_t) *r); }
-  if (*l == 0) return 0;
+  const unsigned char * lp = const_ptr_from_uint (l);
+  const unsigned char * rp = const_ptr_from_uint (r);
+  while ((l & 7) && *lp && *lp == *rp) {
+    ++l; ++r;
+    lp = const_ptr_from_uint (l);
+    rp = const_ptr_from_uint (r);
+  }
+  if (*lp != *rp) { return ((int32_t) *lp) - ((int32_t) *rp); }
+  if (*lp == 0) return 0;
 
   /* 2. If R is also aligned, compare 8 bytes of L, R at a time */
   uint64_t l_buf, l_buf2, l_buf3, r_buf;
 
-  if (((uintptr_t) r & 7) == 0) {
+  if ((r & 7) == 0) {
     while (1) {
       l_buf = read_u64 (l);
       r_buf = read_u64 (r);
@@ -35,7 +41,7 @@ int32_t strcmp (const char * sl, const char * sr) {
     return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
   }
 
-  uint32_t r_off = (uintptr_t) r & 7;
+  uint32_t r_off = r & 7;
   l_buf = read_u64 (l);
   r_buf = read_u64 (r - r_off);
   r_buf >>= 8 * r_off;

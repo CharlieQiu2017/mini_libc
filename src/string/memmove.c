@@ -8,10 +8,12 @@
 #include <string_internal.h>
 
 void * memmove (void * dest, const void * src, size_t n) {
-  char * d = dest;
-  const char * s = src;
+  uintptr_t d = (uintptr_t) dest;
+  uintptr_t s = (uintptr_t) src;
+  const unsigned char * sp;
+  unsigned char * dp;
 
-  if (d == s) return d;
+  if (d == s) return dest;
 
   /* Since n is unsigned, -2 * n is also unsigned.
      It is equal to 2^64 - (2 * n), assuming 2 * n does not overflow.
@@ -22,35 +24,35 @@ void * memmove (void * dest, const void * src, size_t n) {
      If s < d, then s - d = 2^64 - (d - s), and d - s <= 2^64 - n, so s - d >= n.
      So to test whether d - s >= n we also only needs to test s - d - n <= 2^64 - 2 * n.
    */
-  if ((uintptr_t) s - (uintptr_t) d - n <= -2 * n) return memcpy (d, s, n);
+  if (s - d - n <= -2 * n) return memcpy (dest, src, n);
 
-  if ((uintptr_t) d < (uintptr_t) s) {
+  if (d < s) {
 
     /* 1. Align s */
-    while (n && ((uintptr_t) s & 7)) { *d = *s; s++; d++; n--; }
+    while (n && (s & 7)) { sp = const_ptr_from_uint (s); dp = ptr_from_uint (d); *dp = *sp; s++; d++; n--; }
     if (!n) return dest;
 
     /* 2. If d is also aligned, copy 8 bytes at once */
     uint64_t s_buf, s_buf2;
 
-    if (((uintptr_t) d & 7) == 0) {
+    if ((d & 7) == 0) {
       while (n >= 8) {
 	s_buf = read_u64 (s);
-	* ((uint64_alias_t *) d) = s_buf;
+	write_u64 (d, s_buf);
 
 	s += 8; d += 8; n -= 8;
       }
 
-      while (n) { *d = *s; s++; d++; n--; }
+      while (n) { sp = const_ptr_from_uint (s); dp = ptr_from_uint (d); *dp = *sp; s++; d++; n--; }
       return dest;
     }
 
     /* 3. Otherwise, first copy (8 - d_off) bytes to align d */
-    uint32_t d_off = (uintptr_t) d & 7;
+    uint32_t d_off = d & 7;
     s_buf = read_u64 (s);
 
     uint32_t i = 8 - d_off;
-    while (i && n) { *d = s_buf & 0xff; s_buf >>= 8; d++; i--; n--; }
+    while (i && n) { dp = ptr_from_uint (d); *dp = s_buf & 0xff; s_buf >>= 8; d++; i--; n--; }
     if (!n) return dest;
 
     s += 8;
@@ -58,7 +60,7 @@ void * memmove (void * dest, const void * src, size_t n) {
     /* 4. Repeat copy 8 bytes to d at once */
     while (n >= 8) {
       s_buf2 = read_u64 (s);
-      * ((uint64_alias_t *) d) = s_buf | (s_buf2 << (8 * d_off));
+      write_u64 (d, s_buf | (s_buf2 << (8 * d_off)));
 
       s_buf = s_buf2 >> (8 * (8 - d_off));
       s += 8;
@@ -72,7 +74,7 @@ void * memmove (void * dest, const void * src, size_t n) {
     if (n <= d_off) s_buf2 = 0; else s_buf2 = read_u64 (s);
     s_buf = s_buf | (s_buf2 << (8 * d_off));
 
-    while (n) { *d = s_buf & 0xff; s_buf >>= 8; d++; n--; }
+    while (n) { dp = ptr_from_uint (d); *dp = s_buf & 0xff; s_buf >>= 8; d++; n--; }
     return dest;
 
   } else {
@@ -82,32 +84,32 @@ void * memmove (void * dest, const void * src, size_t n) {
     s = s + n;
     d = d + n;
 
-    while (n && ((uintptr_t) s & 7)) { s--; d--; *d = *s; n--; }
+    while (n && (s & 7)) { s--; d--; sp = const_ptr_from_uint (s); dp = ptr_from_uint (d); *dp = *sp; n--; }
     if (!n) return dest;
 
     uint64_t s_buf, s_buf2;
 
-    if (((uintptr_t) d & 7) == 0) {
+    if ((d & 7) == 0) {
       while (n >= 8) {
 	s -= 8;
 	d -= 8;
 
 	s_buf = read_u64 (s);
-	* ((uint64_alias_t *) d) = s_buf;
+	write_u64 (d, s_buf);
 
 	n -= 8;
       }
 
-      while (n) { s--; d--; *d = *s; n--; }
+      while (n) { s--; d--; sp = const_ptr_from_uint (s); dp = ptr_from_uint (d); *dp = *sp; n--; }
       return dest;
     }
 
-    uint32_t d_off = (uintptr_t) d & 7;
+    uint32_t d_off = d & 7;
     s -= 8;
     s_buf = read_u64 (s);
 
     uint32_t i = d_off;
-    while (i && n) { d--; *d = (s_buf >> 56); s_buf <<= 8; i--; n--; }
+    while (i && n) { d--; dp = ptr_from_uint (d); *dp = (s_buf >> 56); s_buf <<= 8; i--; n--; }
     if (!n) return dest;
 
     while (n >= 8) {
@@ -115,7 +117,7 @@ void * memmove (void * dest, const void * src, size_t n) {
       d -= 8;
 
       s_buf2 = read_u64 (s);
-      * ((uint64_alias_t *) d) = s_buf | (s_buf2 >> (8 * (8 - d_off)));
+      write_u64 (d, s_buf | (s_buf2 >> (8 * (8 - d_off))));
 
       s_buf = s_buf2 << (8 * d_off);
       n -= 8;
@@ -127,7 +129,7 @@ void * memmove (void * dest, const void * src, size_t n) {
     if (n <= 8 - d_off) s_buf2 = 0; else s_buf2 = read_u64 (s);
     s_buf = s_buf | (s_buf2 >> (8 * (8 - d_off)));
 
-    while (n) { d--; *d = (s_buf >> 56); s_buf <<= 8; n--; }
+    while (n) { d--; dp = ptr_from_uint (d); *dp = (s_buf >> 56); s_buf <<= 8; n--; }
     return dest;
 
   }

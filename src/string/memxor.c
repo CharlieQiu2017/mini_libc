@@ -10,15 +10,17 @@
 #include <string_internal.h>
 
 void * memxor (void * restrict dest, const void * restrict src, size_t n) {
-  unsigned char * d = dest;
-  const unsigned char * s = src;
+  uintptr_t d = (uintptr_t) dest;
+  uintptr_t s = (uintptr_t) src;
+  const unsigned char * sp;
+  unsigned char * dp;
 
   /* 1. Align s */
-  while (((uintptr_t) s & 7) && n) { *d = *d ^ *s; s++; d++; n--; }
+  while ((s & 7) && n) { sp = const_ptr_from_uint (s); dp = ptr_from_uint (d); *dp = *dp ^ *sp; s++; d++; n--; }
 
   if (!n) return dest;
 
-  uint32_t d_off = (uintptr_t) d & 7;
+  uint32_t d_off = d & 7;
 
   if (d_off == 0) {
     /* 2. Read 8 bytes of s and d at once */
@@ -28,7 +30,7 @@ void * memxor (void * restrict dest, const void * restrict src, size_t n) {
       s_buf = read_u64 (s);
       d_buf = read_u64 (d);
       d_buf ^= s_buf;
-      * ((uint64_alias_t *) d) = d_buf;
+      write_u64 (d, d_buf);
       s += 8; d += 8; n -= 8;
     }
 
@@ -39,7 +41,7 @@ void * memxor (void * restrict dest, const void * restrict src, size_t n) {
     d_buf = read_u64 (d);
     d_buf ^= s_buf;
 
-    while (n) { *d = d_buf & 0xff; d_buf >>= 8; d++; n--; }
+    while (n) { dp = ptr_from_uint (d); *dp = d_buf & 0xff; d_buf >>= 8; d++; n--; }
 
     return dest;
   }
@@ -51,7 +53,7 @@ void * memxor (void * restrict dest, const void * restrict src, size_t n) {
 
   /* 3. Write (8 - d_off) bytes to d */
   uint32_t i = 8 - d_off;
-  while (i && n) { *d = d_buf & 0xff; d_buf >>= 8; d++; i--; n--; }
+  while (i && n) { dp = ptr_from_uint (d); *dp = d_buf & 0xff; d_buf >>= 8; d++; i--; n--; }
 
   if (!n) return dest;
 
@@ -63,7 +65,7 @@ void * memxor (void * restrict dest, const void * restrict src, size_t n) {
     d_buf = read_u64 (d);
     d_buf ^= s_buf1 | (s_buf2 << (8 * d_off));
 
-    * ((uint64_alias_t *) d) = d_buf;
+    write_u64 (d, d_buf);
     s_buf1 = s_buf2 >> (8 * (8 - d_off));
     s += 8; d += 8; n -= 8;
   }
@@ -75,7 +77,7 @@ void * memxor (void * restrict dest, const void * restrict src, size_t n) {
   d_buf = read_u64 (d);
   d_buf ^= s_buf1 | (s_buf2 << (8 * d_off));
 
-  while (n) { *d = d_buf & 0xff; d_buf >>= 8; d++; n--; }
+  while (n) { dp = ptr_from_uint (d); *dp = d_buf & 0xff; d_buf >>= 8; d++; n--; }
 
   return dest;
 }

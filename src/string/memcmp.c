@@ -10,20 +10,26 @@
 #include <string_internal.h>
 
 int32_t memcmp (const void * vl, const void * vr, size_t n) {
-  const unsigned char * l = (const unsigned char *) vl;
-  const unsigned char * r = (const unsigned char *) vr;
+  uintptr_t l = (uintptr_t) vl;
+  uintptr_t r = (uintptr_t) vr;
 
   /* 1. Compare initial bytes until L is aligned */
 
-  while (n && ((uintptr_t) l & 7) && *l == *r) { l++; r++; n--; }
+  const unsigned char * lp = const_ptr_from_uint (l), * rp = const_ptr_from_uint (r);
+  while (n && (l & 7)) {
+    if (*lp != *rp) break;
+    l++; r++; n--;
+    lp = const_ptr_from_uint (l);
+    rp = const_ptr_from_uint (r);
+  }
   if (!n) return 0;
-  if (*l != *r) return ((int32_t) *l) - ((int32_t) *r);
+  if (*lp != *rp) return ((int32_t) *lp) - ((int32_t) *rp);
 
   uint64_t l_buf, l_buf2, l_buf3, r_buf;
 
   /* 2. If R is also aligned, compare 8 bytes of L, R at a time */
 
-  if (((uintptr_t) r & 7) == 0) {
+  if ((r & 7) == 0) {
     while (n >= 8) {
       l_buf = read_u64 (l);
       r_buf = read_u64 (r);
@@ -48,7 +54,7 @@ int32_t memcmp (const void * vl, const void * vr, size_t n) {
     return ((int32_t) (l_buf & 0xff)) - ((int32_t) (r_buf & 0xff));
   }
 
-  uint32_t r_off = (uintptr_t) r & 7;
+  uint32_t r_off = r & 7;
   l_buf = read_u64 (l);
   r_buf = read_u64 (r - r_off);
   r_buf >>= 8 * r_off;

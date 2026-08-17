@@ -19,12 +19,15 @@
 
 #define HASZERO(x) (((x) - ONES) & ~ (x) & HIGHS)
 
-size_t strlen (const char * s) {
+size_t strlen (const char * str) {
   /* 1. Store the initial position */
-  const char * orig_s = s;
+  uintptr_t orig_s = (uintptr_t) str;
+
+  uintptr_t s = (uintptr_t) str;
+  const unsigned char * sp;
 
   /* 2. Check for NUL until s is aligned */
-  while ((uintptr_t) s & 7) { if (*s == 0) return s - orig_s; s++; }
+  while (s & 7) { sp = const_ptr_from_uint (s); if (*sp == 0) return s - orig_s; s++; }
 
   /* 3. Repeat read 8 bytes of s and check for NUL */
   uint64_t buf;
