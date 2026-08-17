@@ -53,10 +53,10 @@ void ntrulpr_653_expand_seed (const unsigned char * seed, uint16_t * out_g) {
 
     /* If p_i >= (q - 1)/2, subtract (q - 1)/2, otherwise add (q + 1)/2 */
     poly[i] = uint32_cmp_ge_branch (poly[i], (NTRU_LPR_Q - 1) / 2, poly[i] - (NTRU_LPR_Q - 1) / 2, poly[i] + (NTRU_LPR_Q + 1) / 2);
+  }
 
-    for (uint32_t i = 0; i < NTRU_LPR_P; ++i) {
-      out_g[i] = poly[i];
-    }
+  for (uint32_t i = 0; i < NTRU_LPR_P; ++i) {
+    out_g[i] = poly[i];
   }
 }
 
