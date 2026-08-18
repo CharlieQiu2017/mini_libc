@@ -25,7 +25,7 @@ Output files:
 * `char` is 1-byte, `short` is 2-byte, `int` is 4-byte, `long` and `long long` are 8-byte. See the "LP64" data model at https://en.cppreference.com/w/cpp/language/types.html#Integral_types.
 * All integral types are in little-endian.
 * `char` is `unsigned char`. AArch64 is rather special in this aspect.
-On x86 and RISCV `char` is `signed char`.
+On x86 and RISC-V `char` is `signed char`.
 * In general, we prefer unsigned types over signed types, since signed overflow is undefined behavior.
 We do not assume `-fwrapv`.
 * Both object pointers and function pointers are 8-byte and can be cast to `uintptr_t` and back.
@@ -36,6 +36,8 @@ we cast `void *` first to `uintptr_t` and then to a function pointer.
 The traditional C integral types are used in Linux syscall interfaces, where we follow the Linux header.
 * AArch64 SIMD instructions are supported, as well as the AES cryptographic extension.
 However, the other cryptographic extensions including SHA2, SHA3 are not supported.
+* We assume calls to `getrandom()` will not fail. This library supports calling the vDSO `getrandom()` interface.
+We assume calls to `getrandom()` provide cryptographic-quality random bytes.
 * In some cases we need to implement multiple instances of the same algorithm with different parameters.
 This is particularly frequent in the cryptographic library.
 While C macros can help avoiding code duplication, it is inconvenient for debugging because one cannot step through each line of a macro.
