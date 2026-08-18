@@ -153,6 +153,7 @@ void ntrulpr_653_round (const uint16_t * g, uint16_t * out) {
    Batcher odd-even merge sort
    See "The Art of Computer Programming" Vol.3 p. 111, or
    https://stackoverflow.com/questions/34426337/how-to-fix-this-non-recursive-odd-even-merge-sort-algorithm
+   See https://gist.github.com/CharlieQiu2017/445ce0f0a060ebf6092fa4ebf551cfd5 for another explanation.
    We incorporate some optimization to reduce loop iterations
  */
 void ntrulpr_653_safesort (uint32_t * poly) {
