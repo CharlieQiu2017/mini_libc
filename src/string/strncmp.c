@@ -136,6 +136,7 @@ end_flag:
   i = 8;
   while (i && (l_buf3 & 0xff) && (l_buf3 & 0xff) == (r_buf & 0xff)) { l_buf3 >>= 8; r_buf >>= 8; i--; }
   if (i) return ((int32_t) (l_buf3 & 0xff)) - ((int32_t) (r_buf & 0xff));
+  if (n == 8) return 0;
 
   /* If we reach this point, then the NUL byte in l_buf2 must be
      in the highest r_off bytes of l_buf2.
