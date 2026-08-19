@@ -1,4 +1,3 @@
-#include <string.h>
 #include <stdint.h>
 #include <string.h>
 #include <string_internal.h>

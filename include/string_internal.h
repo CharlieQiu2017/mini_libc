@@ -28,13 +28,18 @@
    the pointer may carry.
  */
 
+/* There are conflicting ideas as to whether a "memory" clobber is necessary here.
+   Some sources say if inline assembly code only reads but does not modify memory,
+   then a volatile qualifier is sufficient. Other sources say the "memory" clobber
+   is also necessary. Use both volatile and the "memory" clobber to make everyone happy.
+ */
 static inline __attribute__((always_inline)) uint64_t read_u64 (uintptr_t ptr) {
   uint64_t ret;
   __asm__ volatile (
     "ldr %[ret], [%[ptr]]"
   : [ret] "=r" (ret)
   : [ptr] "r" (ptr)
-  :
+  : "memory"
   );
   return ret;
 }
