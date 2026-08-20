@@ -9,11 +9,11 @@
  */
 static inline uint64_t get_class (uint64_t size) {
   if (size <= 512) {
-    return size + ((- size) & 32);
+    return size + ((- size) & 31);
   } else if (size <= 262144) {
     return 1ull << (64 - __builtin_clzll (size - 1));
   } else {
-    return size + ((- size) & 4096);
+    return size + ((- size) & 4095);
   }
 }
 
@@ -54,12 +54,20 @@ static inline uint64_t get_class (uint64_t size) {
    and returns the previous head. To add an element to the queue, swap tail with
    the new element, and set orig_tail.next to the new element.
 
-   There is a minor caveat with this concurrent queue. The last element of the
+   There is a very subtle problem with this concurrent queue. The last element of the
    queue cannot be taken out, because some other thread might be writing to the
    'next' field. We resolve this issue by introducing "placeholder" elements, one
    for each thread. When the owner of the thread wants to take out the last element
    of the queue, it inserts the placeholder into the queue. After other threads add
    new elements so that the placeholder is no longer the last element, we take it out.
+
+   It is tempting to think that after the owner inserts its placeholder element,
+   it can immediately take out residual elements in the queue. This is wrong, because
+   the queue is non-linearizable: if there are concurrent callers to free(), it is
+   NOT guaranteed that the owner will see its placeholder in the queue immediately.
+   After we insert the placeholder, we check head.next. If we still have head.next ==
+   nullptr, this means there are concurrent callers to free(), and we handle those
+   elements later.
 
    Each call to malloc() and free() will also call free_set_clear()
    which clears regions pending to be freed.
@@ -187,7 +195,7 @@ void * aligned_alloc_with_arena (size_t alignment, size_t size, struct malloc_ar
 
   /* Find k such that (ptr + k) mod alignment = -16 */
   uintptr_t ptr_int = (uintptr_t) ptr;
-  uintptr_t ptr_mod = (ptr_int & ((1 << alignment_log) - 1));
+  uintptr_t ptr_mod = (ptr_int & ((1ull << alignment_log) - 1));
   /* Since ptr_int is a multiple of 16,
      we have ptr_mod <= alignment - 16
    */
@@ -273,24 +281,53 @@ static void insert_into_free_set_of_arena (void * elem, struct malloc_arena_t * 
 void clear_free_set_of_arena (struct malloc_arena_t * arena) {
   void * curr_head = arena->free_set_head, * next;
 
+  /* Assume that the placeholder element has been added to the queue.
+     This invariant will be restored at the end.
+   */
+  bool placeholder_in_queue = true;
+
   while (true) {
     next = (void *) __atomic_load_8 ((void **) curr_head, __ATOMIC_SEQ_CST);
-    if (next != NULL && curr_head != (void *) &arena->free_set_placeholder) {
-      /* If the current head is not the placeholder, free it */
-      /* curr_head is an allocation previously made by this thread.
-	 Therefore, the following to loads do not need to be atomic.
-       */
-      uintptr_t x = *(uintptr_t *)(((uintptr_t) curr_head) - 8);
-      uintptr_t y = *(uintptr_t *)(((uintptr_t) curr_head) - 16);
-      free_with_arena_internal (curr_head, x, y, arena);
-      curr_head = next;
+    if (next != NULL) {
+      if (curr_head != (void *) &arena->free_set_placeholder) {
+        /* If the current head is not the placeholder, free it */
+        /* curr_head is an allocation previously made by this thread.
+	         Therefore, the following to loads do not need to be atomic.
+         */
+        uintptr_t x = *(uintptr_t *)(((uintptr_t) curr_head) - 8);
+        uintptr_t y = *(uintptr_t *)(((uintptr_t) curr_head) - 16);
+        free_with_arena_internal (curr_head, x, y, arena);
+        curr_head = next;
+      } else {
+        /* Otherwise, we have popped the placeholder.
+           Set placeholder_in_queue to false.
+         */
+        placeholder_in_queue = false;
+        curr_head = next;
+      }
     } else {
-      /* If the last element is the placeholder, we have reached the end */
+      /* If we reach this point, then next == NULL, and there are three possibilities:
+         1. Current head is the placeholder. Then we must have placeholder_in_queue == true.
+            In this case we have reached the end, and we return.
+         2. Current head is not the placeholder, but placeholder_in_queue == false.
+            In this case we re-insert the placeholder and try again.
+         3. Current head is not the placeholder, and placeholder_in_queue == true.
+            In this case there are concurrent free() callers. We have to return
+            and handle the residual elements later.
+       */
       if (curr_head == (void *) &arena->free_set_placeholder) break;
-      /* Otherwise, the placeholder is not in the queue, we insert it to take out the final element */
+      if (placeholder_in_queue) break;
+
       insert_into_free_set_of_arena (&arena->free_set_placeholder, arena);
+      placeholder_in_queue = true;
     }
   }
+
+  /* There are only two ways to exit the above loop, namely case 1 and 3 in the else branch.
+     In either case we have placeholder_in_queue == true, so the assumption at beginning is maintained.
+   */
+
+  arena->free_set_head = curr_head;
 }
 
 void free_with_arena (void * ptr, struct malloc_arena_t * arena) {

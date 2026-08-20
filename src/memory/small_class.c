@@ -49,7 +49,7 @@ static void allocate_class_block (uint64_t size, struct small_class_arena_t * ar
   if (*list_head != NULL) (*list_head)->prev_avail_block = ptr;
   *list_head = ptr;
 
-  uint32_t avail_num = (65536 - CLASS_BLOCK_HEADER_SIZE) / size;
+  const uint32_t avail_num = (65536 - CLASS_BLOCK_HEADER_SIZE) / size;
   ptr->avail_num = avail_num;
   for (uint32_t i = 0; i < avail_num / 64; ++i) ptr->bitmap[i] = ~ 0ull;
   uint32_t avail_num_rem = avail_num % 64;
@@ -77,7 +77,8 @@ void * small_alloc (size_t len, void ** ctx_ptr, void * arena_vp) {
   }
 
   struct small_class_block * block = *list_head;
-  for (uint32_t i = 0; i < 32; ++i) {
+  const uint32_t avail_num = (65536 - CLASS_BLOCK_HEADER_SIZE) / len;
+  for (uint32_t i = 0; i <= avail_num / 64; ++i) {
     if (block->bitmap[i] != 0) {
       uint32_t idx = __builtin_ctzll (block->bitmap[i]);
       block->bitmap[i] &= ~ (1ull << idx);
@@ -86,7 +87,6 @@ void * small_alloc (size_t len, void ** ctx_ptr, void * arena_vp) {
       if (block->avail_num == 0) {
 	if (block->next_avail_block != NULL) block->next_avail_block->prev_avail_block = block->prev_avail_block;
 	*list_head = block->next_avail_block;
-	block->next_avail_block = NULL;
       }
       return SMALL_CLASS_IDX_SLOT (block, 64 * i + idx, len);
     }
@@ -126,7 +126,7 @@ void small_free (void * ptr, void * ctx, size_t len, void * arena_vp) {
       if (block->prev_avail_block != NULL) block->prev_avail_block->next_avail_block = block->next_avail_block;
       if (block->next_avail_block != NULL) block->next_avail_block->prev_avail_block = block->prev_avail_block;
       if (*list_head == block) *list_head = block->next_avail_block;
-      buddy_free_4 (block->buddy_ctx, block, arena->buddy_arena);
+      buddy_free_4 (block, block->buddy_ctx, arena->buddy_arena);
     }
   }
 }

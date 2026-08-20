@@ -177,8 +177,8 @@ void * buddy_alloc_6 (void ** ctx_ptr, void * arena_vp) {
 
     if (st->avail_num[6] == 0) {
       if (st->next_avail_idx6 != NULL) st->next_avail_idx6->prev_avail_idx6 = NULL;
-      st->next_avail_idx6 = NULL;
       arena->avail6_list_head = st->next_avail_idx6;
+      st->next_avail_idx6 = NULL;
     }
 
     *out_buddy_chunk_state = st;
@@ -212,8 +212,8 @@ void * buddy_alloc_5 (void ** ctx_ptr, void * arena_vp) {
 
     if (st->avail_num[5] == 0) {
       if (st->next_avail_idx5 != NULL) st->next_avail_idx5->prev_avail_idx5 = NULL;
-      st->next_avail_idx5 = NULL;
       arena->avail5_list_head = st->next_avail_idx5;
+      st->next_avail_idx5 = NULL;
     }
 
     *out_buddy_chunk_state = st;
@@ -255,8 +255,8 @@ void * buddy_alloc_4 (void ** ctx_ptr, void * arena_vp) {
 
     if (st->avail_num[4] == 0) {
       if (st->next_avail_idx4 != NULL) st->next_avail_idx4->prev_avail_idx4 = NULL;
-      st->next_avail_idx4 = NULL;
       arena->avail4_list_head = st->next_avail_idx4;
+      st->next_avail_idx4 = NULL;
     }
 
     *out_buddy_chunk_state = st;
@@ -265,8 +265,8 @@ void * buddy_alloc_4 (void ** ctx_ptr, void * arena_vp) {
   } else {
 
     void * block = buddy_alloc_5 ((void **) &st, arena);
-    uint32_t idx = BUDDY_BLOCK_IDX (st, block, 5);
     if (st != NULL) {
+      uint32_t idx = BUDDY_BLOCK_IDX (st, block, 5);
       st->avail_num[4]++;
       st->bitmap4 |= (1ull << (2 * idx + 1));
       if (st->avail_num[4] == 1) {
@@ -298,8 +298,8 @@ void * buddy_alloc_3 (void ** ctx_ptr, void * arena_vp) {
 
     if (st->avail_num[3] == 0) {
       if (st->next_avail_idx3 != NULL) st->next_avail_idx3->prev_avail_idx3 = NULL;
-      st->next_avail_idx3 = NULL;
       arena->avail3_list_head = st->next_avail_idx3;
+      st->next_avail_idx3 = NULL;
     }
 
     *out_buddy_chunk_state = st;
@@ -341,8 +341,8 @@ void * buddy_alloc_2 (void ** ctx_ptr, void * arena_vp) {
 
     if (st->avail_num[2] == 0) {
       if (st->next_avail_idx2 != NULL) st->next_avail_idx2->prev_avail_idx2 = NULL;
-      st->next_avail_idx2 = NULL;
       arena->avail2_list_head = st->next_avail_idx2;
+      st->next_avail_idx2 = NULL;
     }
 
     *out_buddy_chunk_state = st;
@@ -384,8 +384,8 @@ void * buddy_alloc_1 (void ** ctx_ptr, void * arena_vp) {
 
     if (st->avail_num[1] == 0) {
       if (st->next_avail_idx1 != NULL) st->next_avail_idx1->prev_avail_idx1 = NULL;
-      st->next_avail_idx1 = NULL;
       arena->avail1_list_head = st->next_avail_idx1;
+      st->next_avail_idx1 = NULL;
     }
 
     *out_buddy_chunk_state = st;
@@ -435,8 +435,8 @@ void * buddy_alloc_0 (void ** ctx_ptr, void * arena_vp) {
 
     if (st->avail_num[0] == 0) {
       if (st->next_avail_idx0 != NULL) st->next_avail_idx0->prev_avail_idx0 = NULL;
-      st->next_avail_idx0 = NULL;
       arena->avail0_list_head = st->next_avail_idx0;
+      st->next_avail_idx0 = NULL;
     }
 
     *out_buddy_chunk_state = st;
