@@ -18,6 +18,10 @@ int connect (fd_t fd, const struct sockaddr * addr, int addrlen) {
   return syscall3 (fd, (long) addr, addrlen, __NR_connect);
 }
 
+int listen (fd_t fd, int backlog) {
+  return syscall2 (fd, backlog, __NR_listen);
+}
+
 int accept (fd_t fd, struct sockaddr * addr, int * addrlen) {
   return syscall3 (fd, (long) addr, (long) addrlen, __NR_accept);
 }

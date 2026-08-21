@@ -963,6 +963,7 @@ fd_t socket (int domain, int type, int protocol);
 int socketpair (int domain, int type, int protocol, fd_t * sv);
 int bind (fd_t fd, const struct sockaddr * addr, int addrlen);
 int connect (fd_t fd, const struct sockaddr * addr, int addrlen);
+int listen (fd_t fd, int backlog);
 int accept (fd_t fd, struct sockaddr * addr, int * addrlen);
 int accept4 (fd_t fd, struct sockaddr * addr, int * addrlen, int flags);
 int shutdown (fd_t fd, int how);
