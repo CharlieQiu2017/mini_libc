@@ -6,11 +6,10 @@
 #include <stdint.h>
 #include <string_internal.h>
 
-void * memset (void * dest, uint32_t c, size_t n) {
+void * memset (void * dest, uint8_t c, size_t n) {
   uintptr_t d = (uintptr_t) dest;
   unsigned char * dp;
-  c &= 0xff;
-  uint64_t c_long = ((uint64_t) c) * 0x0101010101010101;
+  uint64_t c_long = ((uint64_t) c) * 0x0101010101010101ull;
 
   while (n && (d & 7)) { dp = ptr_from_uint (d); *dp = c; d++; n--; }
 
