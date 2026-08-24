@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <crypto/pk/ntru_lprime/ntru_lprime.h>
+#include <crypto/sort.h>
 #include <random.h>
 #include <exit.h>
 
@@ -33,7 +33,7 @@ void main (__attribute__((unused)) void * sp) {
     g_copy[i] = g_rnd[i];
   }
 
-  ntrulpr_653_safesort (g_rnd);
+  safe_sort_uint32_653 (g_rnd);
   sort_ref (g_copy);
 
   for (uint32_t i = 0; i < NTRU_LPR_P; ++i) {

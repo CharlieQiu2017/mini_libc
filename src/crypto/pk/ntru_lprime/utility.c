@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <crypto/common.h>
+#include <crypto/sort.h>
 #include <crypto/sk/aes/aes.h>
 #include <crypto/hash/keccak/keccak_p.h>
 #include <crypto/pk/ntru_lprime/ntru_lprime.h>
@@ -149,93 +150,6 @@ void ntrulpr_653_round (const uint16_t * g, uint16_t * out) {
   return;
 }
 
-/* Sort 653 integers in constant time
-   Batcher odd-even merge sort
-   See "The Art of Computer Programming" Vol.3 p. 111, or
-   https://stackoverflow.com/questions/34426337/how-to-fix-this-non-recursive-odd-even-merge-sort-algorithm
-   See https://gist.github.com/CharlieQiu2017/445ce0f0a060ebf6092fa4ebf551cfd5 for another explanation.
-   We incorporate some optimization to reduce loop iterations
- */
-void ntrulpr_653_safesort (uint32_t * poly) {
-  /* The algorithm involves 5 variables called p, q, r, d, i.
-     p is always a power of 2, and we represent it by its log_2 value.
-     Initially log_2(p) = 9, which is the largest t with (1 << t) < 653.
-
-     The algorithm consists of two layers of loops.
-     The outer layer loops over log_2(p).
-     Each iteration decreases log_2(p) by 1, and we loop until log_2(p) == 0 (inclusive).
-
-     The inner layer loops over q.
-     q is also a power of 2, and we represent it by its log_2 value.
-     Each outer iteration begins with setting log_2(q) to 9.
-     Each inner iteration decreases log_2(q) by 1, until log_2(q) == log_2(p) (inclusive).
-
-     Within each iteration of the outer loop,
-     the first iteration of the inner loop sets r to 0, and subsequent iterations set r to p.
-     Therefore we do not define r explicitly.
-     We simply handle the first inner iteration separately from the rest iterations.
-
-     Now inside the inner loop, we need to iterate through each i with i & p == r.
-     This simply means i should have its log_2(p)-th bit set or cleared.
-     We represent i as a * (1 << (log_p + 1)) + r + b where b < (1 << log_p).
-     We also have to check that i + d < 653.
-   */
-
-  /* Initialize p */
-  uint32_t log_p = 9;
-
-  while (log_p < 10) {
-    /* Initialize q, r, d */
-    uint32_t d = 1u << log_p;
-
-    /* Handle the first iteration separately */
-    {
-      uint32_t a = 0, b = 0, i = 0;
-
-      while (i < NTRU_LPR_P - d) {
-	uint32_t x = poly[i], y = poly[i + d], sum = x + y;
-	uint32_t u = uint32_cmp_ge_branch (x, y, y, x), v = sum - u;
-	poly[i] = u; poly[i + d] = v;
-
-	b++;
-	if (b == (1u << log_p)) { b = 0; a++; }
-	i = (a << (log_p + 1)) + b;
-      }
-    }
-
-    uint32_t log_q = 9;
-
-    /* We want to loop over log_q = 8, 7, 6, ...
-       However, since the last iteration of the outer loop has log_p == 0,
-       we cannot write `while (log_q >= log_p)`.
-       Instead, we write `while (log_q >= log_p + 1)`,
-       and decrease log_q inside the loop.
-     */
-
-    while (log_q >= log_p + 1) {
-      d = (1u << log_q) - (1u << log_p);
-      log_q--;
-
-      uint32_t a = 0, b = 0, i = 1u << log_p;
-
-      while (i < NTRU_LPR_P - d) {
-	uint32_t x = poly[i], y = poly[i + d], sum = x + y;
-	uint32_t u = uint32_cmp_ge_branch (x, y, y, x), v = sum - u;
-	poly[i] = u; poly[i + d] = v;
-
-	b++;
-	if (b == (1u << log_p)) { b = 0; a++; }
-	i = (a << (log_p + 1)) + (1u << log_p) + b;
-      }
-    }
-
-    /* Loop on p */
-    log_p--;
-  }
-
-  return;
-}
-
 /* The HashShort function */
 void ntrulpr_653_hashshort (const unsigned char * input, uint8_t * out) {
   /* Hash input with Keccak-512 */
@@ -277,7 +191,7 @@ void ntrulpr_653_hashshort (const unsigned char * input, uint8_t * out) {
   }
 
   /* Sort the integers */
-  ntrulpr_653_safesort (poly);
+  safe_sort_uint32_653 (poly);
 
   /* Reduce each integer modulo 4 */
   memset (out, 0, NTRU_LPR_SHORT_ENC_LEN);

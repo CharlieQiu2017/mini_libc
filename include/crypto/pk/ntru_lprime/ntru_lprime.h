@@ -124,8 +124,6 @@ void ntrulpr_653_poly_mult_short (const uint16_t * g, const uint8_t * a, uint32_
 
 void ntrulpr_653_round (const uint16_t * g, uint16_t * out);
 
-void ntrulpr_653_safesort (uint32_t * poly);
-
 void ntrulpr_653_hashshort (const unsigned char * input, uint8_t * out);
 
 void ntrulpr_653_gen_key (unsigned char * sk_out, unsigned char * pk_out);
