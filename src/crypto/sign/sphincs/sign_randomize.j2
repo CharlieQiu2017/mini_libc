@@ -35,7 +35,8 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_sign_randomize (const unsigned ch
     idx_tree <<= 8;
     idx_tree += digest[SPHINCS_MD_BYTES + i];
   }
-  idx_tree &= (1ull << SPHINCS_TREE_BITS) - 1ull;
+  /* SPHINCS_TREE_BITS might be 64, and 1ull << 64 is UB */
+  if (SPHINCS_TREE_BITS < 64) idx_tree &= (1ull << SPHINCS_TREE_BITS) - 1ull;
 
   uint16_t idx_leaf = 0;
   for (uint32_t i = 0; i < SPHINCS_LEAF_BYTES; ++i) {
