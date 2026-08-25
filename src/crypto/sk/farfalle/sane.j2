@@ -98,13 +98,13 @@ unsigned char farfalle_{{ inst.name }}_sane_unwrap (struct farfalle_{{ inst.name
   }
 
   farfalle_{{ inst.name }}_begin_extract (&st->fst);
-  unsigned char result = uint64_to_bool (farfalle_{{ inst.name }}_extract_and_compare (&st->fst, tag, st->tag_len));
+  _Bool result = uint64_to_bool (farfalle_{{ inst.name }}_extract_and_compare (&st->fst, tag, st->tag_len));
 
   /* If result != 0, rollback state */
   /* Otherwise, keep current state, flip parity */
 
   cond_memcpy (result, &st->fst, &st_bak, sizeof (struct farfalle_{{ inst.name }}_state));
-  st->parity ^= 1 - result;
+  st->parity ^= (! result);
 
   return result;
 }

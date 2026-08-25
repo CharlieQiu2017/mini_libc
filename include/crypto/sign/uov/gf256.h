@@ -102,7 +102,7 @@ static inline uint8_t gf256_inv (uint8_t x) {
 
   for (uint32_t i = 1; i <= 15; ++i) {
     uint32_t g_tail = uint32_value_barrier (g & 1);
-    uint32_t flag = int32_cmp_ge (n, m) | (1 - g_tail);
+    uint32_t flag = int32_cmp_ge (n, m) | (g_tail ^ 1);
 
     uint32_t new_f_1 = f;
     uint32_t new_g_1 = ((f * g_tail) ^ g) >> 1;
@@ -122,14 +122,14 @@ static inline uint8_t gf256_inv (uint8_t x) {
     uint32_t new_u_2 = u ^ r;
     uint32_t new_v_2 = v ^ s;
 
-    f = new_f_1 * flag + new_f_2 * (1 - flag);
-    g = new_g_1 * flag + new_g_2 * (1 - flag);
-    m = new_m_1 * flag + new_m_2 * (1 - flag);
-    n = new_n_1 * flag + new_n_2 * (1 - flag);
-    r = new_r_1 * flag + new_r_2 * (1 - flag);
-    s = new_s_1 * flag + new_s_2 * (1 - flag);
-    u = new_u_1 * flag + new_u_2 * (1 - flag);
-    v = new_v_1 * flag + new_v_2 * (1 - flag);
+    f = new_f_1 * flag + new_f_2 * (flag ^ 1);
+    g = new_g_1 * flag + new_g_2 * (flag ^ 1);
+    m = new_m_1 * flag + new_m_2 * (flag ^ 1);
+    n = new_n_1 * flag + new_n_2 * (flag ^ 1);
+    r = new_r_1 * flag + new_r_2 * (flag ^ 1);
+    s = new_s_1 * flag + new_s_2 * (flag ^ 1);
+    u = new_u_1 * flag + new_u_2 * (flag ^ 1);
+    v = new_v_1 * flag + new_v_2 * (flag ^ 1);
 
     /* The above code simulates the following code in constant time.
     if (flag) {

@@ -30,8 +30,8 @@ static inline uint64_t uint64_value_barrier (uint64_t input) {
 }
 
 /* If input x is not zero, return 1, otherwise return 0 */
-static inline uint32_t uint32_to_bool (uint32_t x) {
-  uint32_t output;
+static inline _Bool uint32_to_bool (uint32_t x) {
+  _Bool output;
   __asm__ (
     "cmp %w[input_reg], #0\n\t"
     "cset %w[output_reg], ne"
@@ -42,8 +42,8 @@ static inline uint32_t uint32_to_bool (uint32_t x) {
   return output;
 }
 
-static inline uint64_t uint64_to_bool (uint64_t x) {
-  uint64_t output;
+static inline _Bool uint64_to_bool (uint64_t x) {
+  _Bool output;
   __asm__ (
     "cmp %[input_reg], #0\n\t"
     "cset %[output_reg], ne"
@@ -79,8 +79,8 @@ static inline uint64_t uint64_cmp_ge_branch (uint64_t x, uint64_t y, uint64_t a,
 }
 
 /* If a >= b return 1, otherwise return 0 */
-static inline uint32_t int32_cmp_ge (int32_t a, int32_t b) {
-  uint32_t output;
+static inline _Bool int32_cmp_ge (int32_t a, int32_t b) {
+  _Bool output;
   __asm__ (
     "cmp %w[a_reg], %w[b_reg]\n\t"
     "cset %w[output_reg], ge"
@@ -91,11 +91,60 @@ static inline uint32_t int32_cmp_ge (int32_t a, int32_t b) {
   return output;
 }
 
-static inline uint64_t int64_cmp_ge (int64_t a, int64_t b) {
-  uint64_t output;
+static inline _Bool int64_cmp_ge (int64_t a, int64_t b) {
+  _Bool output;
   __asm__ (
     "cmp %[a_reg], %[b_reg]\n\t"
     "cset %[output_reg], ge"
+  : [output_reg] "=r" (output)
+  : [a_reg] "r" (a), [b_reg] "r" (b)
+  : "cc"
+  );
+  return output;
+}
+
+static inline _Bool uint32_cmp_ge (uint32_t a, uint32_t b) {
+  _Bool output;
+  __asm__ (
+    "cmp %w[a_reg], %w[b_reg]\n\t"
+    "cset %w[output_reg], hs"
+  : [output_reg] "=r" (output)
+  : [a_reg] "r" (a), [b_reg] "r" (b)
+  : "cc"
+  );
+  return output;
+}
+
+static inline _Bool uint64_cmp_ge (uint64_t a, uint64_t b) {
+  _Bool output;
+  __asm__ (
+    "cmp %[a_reg], %[b_reg]\n\t"
+    "cset %[output_reg], hs"
+  : [output_reg] "=r" (output)
+  : [a_reg] "r" (a), [b_reg] "r" (b)
+  : "cc"
+  );
+  return output;
+}
+
+/* Return the smaller one of a and b */
+static inline uint32_t uint32_min (uint32_t a, uint32_t b) {
+  uint32_t output;
+  __asm__ (
+    "cmp %w[a_reg], %w[b_reg]\n\t"
+    "csel %w[output_reg], %w[a_reg], %w[b_reg], ls\n\t"
+  : [output_reg] "=r" (output)
+  : [a_reg] "r" (a), [b_reg] "r" (b)
+  : "cc"
+  );
+  return output;
+}
+
+static inline uint64_t uint64_min (uint64_t a, uint64_t b) {
+  uint64_t output;
+  __asm__ (
+    "cmp %[a_reg], %[b_reg]\n\t"
+    "csel %[output_reg], %[a_reg], %[b_reg], ls\n\t"
   : [output_reg] "=r" (output)
   : [a_reg] "r" (a), [b_reg] "r" (b)
   : "cc"
