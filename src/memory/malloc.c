@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stdbool.h>
 #include <string.h>
 #include <memory.h>
 #include <tls.h>
@@ -284,9 +283,9 @@ void clear_free_set_of_arena (struct malloc_arena_t * arena) {
   /* Assume that the placeholder element has been added to the queue.
      This invariant will be restored at the end.
    */
-  bool placeholder_in_queue = true;
+  _Bool placeholder_in_queue = 1;
 
-  while (true) {
+  while (1) {
     next = (void *) __atomic_load_8 ((void **) curr_head, __ATOMIC_SEQ_CST);
     if (next != NULL) {
       if (curr_head != (void *) &arena->free_set_placeholder) {
@@ -302,7 +301,7 @@ void clear_free_set_of_arena (struct malloc_arena_t * arena) {
         /* Otherwise, we have popped the placeholder.
            Set placeholder_in_queue to false.
          */
-        placeholder_in_queue = false;
+        placeholder_in_queue = 0;
         curr_head = next;
       }
     } else {
@@ -319,7 +318,7 @@ void clear_free_set_of_arena (struct malloc_arena_t * arena) {
       if (placeholder_in_queue) break;
 
       insert_into_free_set_of_arena (&arena->free_set_placeholder, arena);
-      placeholder_in_queue = true;
+      placeholder_in_queue = 1;
     }
   }
 
