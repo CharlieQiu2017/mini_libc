@@ -25,7 +25,7 @@ void * memcpy (void * restrict dest, const void * restrict src, size_t n);
 void * memmove (void * dest, const void * src, size_t n);
 int32_t memcmp (const void * vl, const void * vr, size_t n);
 uint64_t safe_memcmp (const void * vl, const void * vr, size_t n);
-void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, size_t n);
+void cond_memcpy (_Bool cond, void * restrict vd, const void * restrict vs, size_t n);
 void * memxor (void * restrict dest, const void * restrict src, size_t n);
 
 #ifdef __cplusplus

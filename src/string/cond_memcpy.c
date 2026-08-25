@@ -9,18 +9,20 @@
 #include <stdint.h>
 #include <string.h>
 #include <string_internal.h>
+#include <crypto/common.h>
 
-void cond_memcpy (uint8_t cond, void * restrict vd, const void * restrict vs, size_t n) {
+void cond_memcpy (_Bool cond, void * restrict vd, const void * restrict vs, size_t n) {
+  uint32_t cond_val = uint32_value_barrier (cond);
   uintptr_t s = (uintptr_t) vs;
   uintptr_t d = (uintptr_t) vd;
   const unsigned char * sp;
   unsigned char * dp;
 
-  uint8_t mask_src = cond * 0xff;
-  uint8_t mask_dst = (1 - cond) * 0xff;
+  uint8_t mask_src = cond_val * 0xff;
+  uint8_t mask_dst = (cond_val ^ 1) * 0xff;
 
-  uint64_t mask_src_long = cond * ((uint64_t) -1);
-  uint64_t mask_dst_long = (1 - cond) * ((uint64_t) -1);
+  uint64_t mask_src_long = cond_val * ((uint64_t) -1);
+  uint64_t mask_dst_long = (cond_val ^ 1) * ((uint64_t) -1);
 
   while (n && (s & 7)) {
     sp = const_ptr_from_uint (s);
