@@ -26,6 +26,13 @@
    while 1/4621 = 0.000216403...
    Therefore (x * 1903504225) >> 43 is a good approximation of x / 4621.
    Also, 4294967295 * 1903504225 = 8175488392269321375 and does not overflow within 64-bit arithmetics.
+
+   General steps in Mathematica to find Barrett reduction constants:
+   1. Determine largest x that we will want to reduce.
+   2. RealDigits[1 / Q, 2, 64]
+   3. RealDigits[1 / Q + 1 / (Q * x), 2, 64]
+   4. Truncate the result of step 3 at the first digit that diverges from step 2 (keep that digit).
+   5. Convert the truncated number back to rational form.
  */
 
 #define NTRU_LPR_K 43
