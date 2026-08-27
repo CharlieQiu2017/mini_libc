@@ -1,6 +1,0 @@
-{
-  "insts": [
-    { "length": "653", "length_log2": "10", "comment": "Used by NTRU LPrime 653" },
-    { "length": "147", "length_log2": "8", "comment": "Used by CROSS-RSDPG-1-fast" }
-  ]
-}

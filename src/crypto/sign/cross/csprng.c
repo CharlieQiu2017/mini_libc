@@ -183,8 +183,7 @@ void cross_csprng_hamming_ball (const unsigned char * seed, size_t seed_len, con
     tags[i] &= ~1u;
   }
 
-  /* Hard coded sorting length for now */
-  safe_sort_uint32_147 (tags);
+  safe_sort_uint32 (tags, 147);
 
   for (uint32_t i = 0; i < CROSS_T; ++i) {
     out[i / 8] |= (tags[i] & 1) << (i % 8);

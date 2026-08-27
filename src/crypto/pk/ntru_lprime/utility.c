@@ -198,7 +198,7 @@ void ntrulpr_653_hashshort (const unsigned char * input, uint8_t * out) {
   }
 
   /* Sort the integers */
-  safe_sort_uint32_653 (poly);
+  safe_sort_uint32 (poly, 653);
 
   /* Reduce each integer modulo 4 */
   memset (out, 0, NTRU_LPR_SHORT_ENC_LEN);
