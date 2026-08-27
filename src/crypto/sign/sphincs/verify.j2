@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <random.h>
+#include <crypto/common.h>
 #include <crypto/sign/sphincs/params/common.h>
 #include <crypto/sign/sphincs/hash.h>
 #include <crypto/sign/sphincs/fors.h>
@@ -11,7 +12,7 @@
 
 #include <crypto/sign/sphincs/params/params_{{ inst.secbit }}_{{ inst.hash }}.h>
 
-uint64_t sphincs_{{ inst.secbit }}_{{ inst.hash }}_verify (const unsigned char * pk, const unsigned char * msg, size_t msg_len, const unsigned char * sig) {
+_Bool sphincs_{{ inst.secbit }}_{{ inst.hash }}_verify (const unsigned char * pk, const unsigned char * msg, size_t msg_len, const unsigned char * sig) {
   const unsigned char * pk_seed = pk;
   const unsigned char * pk_root = pk + SPHINCS_N;
   const unsigned char * r = sig;
@@ -43,7 +44,7 @@ uint64_t sphincs_{{ inst.secbit }}_{{ inst.hash }}_verify (const unsigned char *
   unsigned char ht_pk[SPHINCS_N];
   sphincs_ht_sig_to_pk (pk_seed, idx_tree, idx_leaf, fors_pk, sig + SPHINCS_N + SPHINCS_K * (SPHINCS_A + 1) * SPHINCS_N, ht_pk);
 
-  return safe_memcmp (ht_pk, pk_root, SPHINCS_N);
+  return ! uint64_to_bool (safe_memcmp (ht_pk, pk_root, SPHINCS_N));
 }
 
 #include <crypto/sign/sphincs/params/clear.h>
