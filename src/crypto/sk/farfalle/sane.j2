@@ -72,7 +72,7 @@ void farfalle_{{ inst.name }}_sane_wrap (struct farfalle_{{ inst.name }}_sane_st
   st->parity ^= 1;
 }
 
-unsigned char farfalle_{{ inst.name }}_sane_unwrap (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * ct, size_t ct_len, const unsigned char * meta, size_t meta_len, const unsigned char * tag, unsigned char * msg_out) {
+_Bool farfalle_{{ inst.name }}_sane_unwrap (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * ct, size_t ct_len, const unsigned char * meta, size_t meta_len, const unsigned char * tag, unsigned char * msg_out) {
   /* Backup state in case unwrapping fails */
   struct farfalle_{{ inst.name }}_state st_bak = st->fst;
 
@@ -106,7 +106,7 @@ unsigned char farfalle_{{ inst.name }}_sane_unwrap (struct farfalle_{{ inst.name
   cond_memcpy (result, &st->fst, &st_bak, sizeof (struct farfalle_{{ inst.name }}_state));
   st->parity ^= (! result);
 
-  return result;
+  return ! result;
 }
 
 #include <crypto/sk/farfalle/params/clear.h>
