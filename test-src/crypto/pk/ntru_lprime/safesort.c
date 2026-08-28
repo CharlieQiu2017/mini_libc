@@ -33,7 +33,7 @@ void main (__attribute__((unused)) void * sp) {
     g_copy[i] = g_rnd[i];
   }
 
-  safe_sort_uint32_653 (g_rnd);
+  safe_sort_uint32 (g_rnd, 653);
   sort_ref (g_copy);
 
   for (uint32_t i = 0; i < NTRU_LPR_P; ++i) {
