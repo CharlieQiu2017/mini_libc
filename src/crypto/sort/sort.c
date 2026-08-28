@@ -28,8 +28,8 @@ void safe_sort_uint32 (uint32_t * input, size_t len) {
       uint32_t offset2 = offset1 + (1u << (len_log2 - i));
       if (offset2 >= len) break;
       uint32_t x = input[offset1], y = input[offset2], sum = x + y;
-      uint32_t u = uint32_min (x, y), v = sum - u;
-      input[offset1] = u; input[offset2] = v;
+      uint32_t lo = uint32_min (x, y), hi = sum - u;
+      input[offset1] = lo; input[offset2] = hi;
     }
 
     for (uint32_t t = 1; t < i; t++) {
