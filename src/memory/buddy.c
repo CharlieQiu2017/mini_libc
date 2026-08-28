@@ -55,6 +55,11 @@ struct buddy_chunk_state {
   uint32_t bitmap2;
   uint64_t bitmap1;
   uint64_t bitmap0[2];
+  /* For each of the following linked lists, we maintain three invariants.
+     Invariant 1: If the list is not empty, the head of the list satisfies prev == NULL.
+     Invariant 2: If the list is not empty, the tail of the list satisfies next == NULL.
+     Invariant 3: If st is not in the list, then st->prev == NULL.
+   */
   struct buddy_chunk_state *next_avail_idx6, *prev_avail_idx6;
   struct buddy_chunk_state *next_avail_idx5, *prev_avail_idx5;
   struct buddy_chunk_state *next_avail_idx4, *prev_avail_idx4;
@@ -83,6 +88,8 @@ static void allocate_buddy_chunk_state_group (struct buddy_arena_t * arena) {
   struct buddy_chunk_state_group * new_group = mmap_alloc (16 << 12, &mmap_ctx_ptr); /* 16 pages */
   if (new_group == NULL) return;
 
+  /* Pages returned by mmap are already zeroed. */
+
   new_group->next_group = arena->group_list_head;
   if (arena->group_list_head != NULL) arena->group_list_head->prev_group = new_group;
   arena->group_list_head = new_group;
@@ -108,6 +115,12 @@ static struct buddy_chunk_state * allocate_buddy_chunk_state (struct buddy_arena
   if (arena->empty_list_head == NULL) return NULL;
 
   struct buddy_chunk_state * new_state = arena->empty_list_head;
+
+  /* new_state is guaranteed to be zeroed. If it comes from mmap then it is zeroed by mmap.
+     If it is freed previously then free_buddy_chunk_state() will zero it.
+     Since it comes from list head, new_state->prev_empty_state == NULL.
+   */
+
   arena->empty_list_head = new_state->next_empty_state;
   if (arena->empty_list_head != NULL) arena->empty_list_head->prev_empty_state = NULL;
   new_state->next_empty_state = NULL;
@@ -123,6 +136,7 @@ static struct buddy_chunk_state * allocate_buddy_chunk_state (struct buddy_arena
  */
 
 static void free_buddy_chunk_state (struct buddy_chunk_state * ptr, struct buddy_arena_t * arena) {
+  /* Important: zeroize buddy_chunk_state */
   memset (ptr, 0, sizeof (struct buddy_chunk_state));
   ptr->next_empty_state = arena->empty_list_head;
   if (arena->empty_list_head != NULL) arena->empty_list_head->prev_empty_state = ptr;
@@ -147,8 +161,9 @@ static struct buddy_chunk_state * allocate_chunk_and_block6 (struct buddy_arena_
     return NULL;
   }
 
-  new_state->bitmap6 = 2;
-  new_state->avail_num[6] = 1;
+  new_state->bitmap6 = 2; /* 2 == 0b10, so first block allocated, second block free. */
+  new_state->avail_num[6] = 1; /* one available order 6 block */
+  /* allocate_buddy_chunk_state guarantees new_state->prev_avail_idx6 == NULL */
   new_state->next_avail_idx6 = arena->avail6_list_head;
   if (arena->avail6_list_head != NULL) arena->avail6_list_head->prev_avail_idx6 = new_state;
   arena->avail6_list_head = new_state;

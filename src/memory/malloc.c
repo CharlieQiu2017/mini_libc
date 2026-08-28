@@ -234,25 +234,25 @@ static void free_with_arena_internal (void * ptr, uintptr_t x, uintptr_t y, stru
   void * ctx = (void *)(y & ~0x07);
 
   if (s <= 16) {
-    small_free (ptr, ctx, s * 32, arena);
+    small_free (ptr, ctx, s * 32, &arena->small_class_arena);
   } else if (s == 17) {
-    small_free (ptr, ctx, 1024, arena);
+    small_free (ptr, ctx, 1024, &arena->small_class_arena);
   } else if (s == 18) {
-    small_free (ptr, ctx, 2048, arena);
+    small_free (ptr, ctx, 2048, &arena->small_class_arena);
   } else if (s == 19) {
-    buddy_free_0 (ptr, ctx, arena);
+    buddy_free_0 (ptr, ctx, &arena->buddy_arena);
   } else if (s == 20) {
-    buddy_free_1 (ptr, ctx, arena);
+    buddy_free_1 (ptr, ctx, &arena->buddy_arena);
   } else if (s == 21) {
-    buddy_free_2 (ptr, ctx, arena);
+    buddy_free_2 (ptr, ctx, &arena->buddy_arena);
   } else if (s == 22) {
-    buddy_free_3 (ptr, ctx, arena);
+    buddy_free_3 (ptr, ctx, &arena->buddy_arena);
   } else if (s == 23) {
-    buddy_free_4 (ptr, ctx, arena);
+    buddy_free_4 (ptr, ctx, &arena->buddy_arena);
   } else if (s == 24) {
-    buddy_free_5 (ptr, ctx, arena);
+    buddy_free_5 (ptr, ctx, &arena->buddy_arena);
   } else if (s == 25) {
-    buddy_free_6 (ptr, ctx, arena);
+    buddy_free_6 (ptr, ctx, &arena->buddy_arena);
   }
 }
 

@@ -8,6 +8,7 @@
 
 struct small_class_block {
   void *buddy_ctx;
+  /* See buddy.c for the invariants we maintain for linked lists. */
   struct small_class_block *prev_avail_block, *next_avail_block;
   uint64_t bitmap[32];
   uint64_t avail_num;
@@ -85,6 +86,9 @@ void * small_alloc (size_t len, void ** ctx_ptr, void * arena_vp) {
       *out_class_block = block;
       block->avail_num--;
       if (block->avail_num == 0) {
+	/* Since block is list_head, block->prev_avail_block == NULL.
+	   block->next_avail_block contains dangling pointer but it doesn't matter since we don't access it.
+	 */
 	if (block->next_avail_block != NULL) block->next_avail_block->prev_avail_block = block->prev_avail_block;
 	*list_head = block->next_avail_block;
       }
