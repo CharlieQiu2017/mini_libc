@@ -26,7 +26,7 @@ void setup_vdso_getrandom (void) {
      TODO: Implement more robust framework for per-thread state management.
   */
   getrandom_page = mmap (NULL, 4096, getrandom_params.mmap_prot, getrandom_params.mmap_flags | MAP_ANONYMOUS, 0, 0);
-  if (getrandom_page == NULL) getrandom_func_ptr = NULL;
+  if (((intptr_t) getrandom_page) < 0) getrandom_func_ptr = NULL;
 
   return;
 }
