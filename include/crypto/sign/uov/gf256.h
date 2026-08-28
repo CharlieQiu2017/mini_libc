@@ -60,7 +60,7 @@ static inline uint8_t gf256_reduce (uint16_t x) {
   return low ^ high_rem;
 }
 
-static inline uint8_t gf256_mul (uint16_t a, uint16_t b) {
+static inline uint8_t gf256_mul (uint8_t a, uint8_t b) {
   return gf256_reduce (gf256_mul_no_mod (a, b));
 }
 
@@ -101,17 +101,21 @@ static inline uint8_t gf256_inv (uint8_t x) {
   uint32_t r = 1, s = 0, u = 0, v = 1;
 
   for (uint32_t i = 1; i <= 15; ++i) {
-    uint32_t g_tail = uint32_value_barrier (g & 1);
-    uint32_t flag = int32_cmp_ge (n, m) | (g_tail ^ 1);
+    _Bool g_tail = bool_value_barrier (g & 1);
+    _Bool flag = bool_or (int32_cmp_ge (n, m), g_tail ^ 1);
+
+    /* masked values ensure x * flag is not optimized */
+    uint32_t g_tail_masked = uint32_value_barrier (g_tail);
+    uint32_t flag_masked = uint32_value_barrier (flag);
 
     uint32_t new_f_1 = f;
-    uint32_t new_g_1 = ((f * g_tail) ^ g) >> 1;
+    uint32_t new_g_1 = ((f * g_tail_masked) ^ g) >> 1;
     int32_t new_m_1 = m;
     int32_t new_n_1 = n - 1;
     uint32_t new_r_1 = r << 1;
     uint32_t new_s_1 = s << 1;
-    uint32_t new_u_1 = u ^ (r * g_tail);
-    uint32_t new_v_1 = v ^ (s * g_tail);
+    uint32_t new_u_1 = u ^ (r * g_tail_masked);
+    uint32_t new_v_1 = v ^ (s * g_tail_masked);
 
     uint32_t new_f_2 = g;
     uint32_t new_g_2 = (f ^ g) >> 1;
@@ -122,14 +126,14 @@ static inline uint8_t gf256_inv (uint8_t x) {
     uint32_t new_u_2 = u ^ r;
     uint32_t new_v_2 = v ^ s;
 
-    f = new_f_1 * flag + new_f_2 * (flag ^ 1);
-    g = new_g_1 * flag + new_g_2 * (flag ^ 1);
-    m = new_m_1 * flag + new_m_2 * (flag ^ 1);
-    n = new_n_1 * flag + new_n_2 * (flag ^ 1);
-    r = new_r_1 * flag + new_r_2 * (flag ^ 1);
-    s = new_s_1 * flag + new_s_2 * (flag ^ 1);
-    u = new_u_1 * flag + new_u_2 * (flag ^ 1);
-    v = new_v_1 * flag + new_v_2 * (flag ^ 1);
+    f = new_f_1 * flag_masked + new_f_2 * (flag_masked ^ 1);
+    g = new_g_1 * flag_masked + new_g_2 * (flag_masked ^ 1);
+    m = new_m_1 * flag_masked + new_m_2 * (flag_masked ^ 1);
+    n = new_n_1 * flag_masked + new_n_2 * (flag_masked ^ 1);
+    r = new_r_1 * flag_masked + new_r_2 * (flag_masked ^ 1);
+    s = new_s_1 * flag_masked + new_s_2 * (flag_masked ^ 1);
+    u = new_u_1 * flag_masked + new_u_2 * (flag_masked ^ 1);
+    v = new_v_1 * flag_masked + new_v_2 * (flag_masked ^ 1);
 
     /* The above code simulates the following code in constant time.
     if (flag) {

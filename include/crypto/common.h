@@ -29,6 +29,43 @@ static inline uint64_t uint64_value_barrier (uint64_t input) {
   return input;
 }
 
+static inline _Bool bool_value_barrier (_Bool input) {
+  __asm__ (
+    ""
+  : [input_reg] "+r" (input)
+  :
+  :
+  );
+  return input;
+}
+
+/* Boolean operations that are guaranteed not to short circuit.
+   Although C bitwise boolean operators are supposed not to short circuit,
+   the compiler may still short circuit if it determines the operands have no side-effects.
+   Therefore, we use these functions to ensure AND and OR never short circuits.
+ */
+static inline _Bool bool_and (_Bool input1, _Bool input2) {
+  _Bool output;
+  __asm__ (
+    "and %w[output_reg], %w[input1_reg], %w[input2_reg]"
+  : [output_reg] "=r" (output)
+  : [input1_reg] "r" (input1), [input2_reg] "r" (input2)
+  :
+  );
+  return output;
+}
+
+static inline _Bool bool_or (_Bool input1, _Bool input2) {
+  _Bool output;
+  __asm__ (
+    "orr %w[output_reg], %w[input1_reg], %w[input2_reg]"
+  : [output_reg] "=r" (output)
+  : [input1_reg] "r" (input1), [input2_reg] "r" (input2)
+  :
+  );
+  return output;
+}
+
 /* If input x is not zero, return 1, otherwise return 0 */
 static inline _Bool uint32_to_bool (uint32_t x) {
   _Bool output;

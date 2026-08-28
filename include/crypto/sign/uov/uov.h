@@ -14,7 +14,7 @@
    Thus it takes m * v * m bytes.
 
    P^(3) is upper triangular and has size m * m.
-   Thus it takes m * m * m bytes.
+   Thus it takes m * m * (m + 1) / 2 bytes.
 
    Since v + m = n, together they take m * n * (n + 1) / 2 bytes.
 

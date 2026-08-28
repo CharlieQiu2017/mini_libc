@@ -10,7 +10,7 @@
 void main (__attribute__((unused)) void * sp) {
   uint8_t p1[UOV_M * UOV_V * (UOV_V + 1) / 2];
   uint8_t p2[UOV_M * UOV_V * UOV_M];
-  uint8_t p3[UOV_M * UOV_M * UOV_M];
+  uint8_t p3[UOV_M * UOV_M * (UOV_M + 1) / 2];
   uint8_t seed[32];
   uint8_t o[UOV_V * UOV_M];
   uint8_t s[UOV_M * UOV_V * UOV_M];
@@ -19,7 +19,7 @@ void main (__attribute__((unused)) void * sp) {
 
   write (1, p1, UOV_M * UOV_V * (UOV_V + 1) / 2);
   write (1, p2, UOV_M * UOV_V * UOV_M);
-  write (1, p3, UOV_M * UOV_M * UOV_M);
+  write (1, p3, UOV_M * UOV_M * (UOV_M + 1) / 2);
   write (2, seed, 32);
   write (2, o, UOV_V * UOV_M);
   write (2, p1, UOV_M * UOV_V * (UOV_V + 1) / 2);

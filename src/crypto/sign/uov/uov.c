@@ -79,7 +79,7 @@ uint8_t uov_sign (const uint8_t * seed_sk, const uint8_t * o, const uint8_t * p1
     }
 
     /* Step 4: simultaneously invert L and compute L^-1 * (t - y) */
-    uint8_t inv_succ_flag = 1;
+    _Bool inv_succ_flag = 1;
 
     for (uint32_t i = 0; i < UOV_M; ++i) {
 
@@ -91,19 +91,27 @@ uint8_t uov_sign (const uint8_t * seed_sk, const uint8_t * o, const uint8_t * p1
 	   Only the part with k >= i needs to be added,
 	   since at this point all entries with j < i should be zero, except the diagonals.
 	 */
+
+	/* Use value barrier to prevent compiler from transforming
+	   L_ENTRY (l, i, k) ^= flag * L_ENTRY (l, j, k);
+	   into
+	   if (flag) L_ENTRY (l, i, k) ^= L_ENTRY (l, j, k);
+	 */
+	uint32_t flag_masked = uint32_value_barrier (flag);
+
 	for (uint32_t k = i; k < UOV_M; ++k) {
-	  L_ENTRY (l, i, k) ^= flag * L_ENTRY (l, j, k);
+	  L_ENTRY (l, i, k) ^= flag_masked * L_ENTRY (l, j, k);
 	}
 
 	/* Also add entries in (t - y) */
-	y[i] ^= flag * y[j];
+	y[i] ^= flag_masked * y[j];
 
 	/* Update flag */
 	flag = ! uint32_to_bool ((uint32_t) L_ENTRY (l, i, i));
       }
 
       /* If flag == 1 at end of loop, matrix is not invertible */
-      inv_succ_flag *= (! flag);
+      inv_succ_flag = bool_and (inv_succ_flag, flag ^ 1);
 
       /* Step 4.2: invert pivot row */
       uint8_t inv = gf256_inv (L_ENTRY (l, i, i));
@@ -135,8 +143,13 @@ uint8_t uov_sign (const uint8_t * seed_sk, const uint8_t * o, const uint8_t * p1
        This does not constitute a side-channel,
        because the number of iterations needed for signing
        is leaked to the adversary anyway.
+
+       We could just write the condition as (! inv_succ_flag) or (inv_succ_flag ^ 1).
+       However, we then carry the risk that as soon as we set inv_succ_flag to false in the above loop,
+       the compiler short circuits the loop, which would be a timing side-channel.
+       Hence, use bool_value_barrier to prevent this kind of short circuit.
      */
-    if (inv_succ_flag == 0) { ++ctr; continue; }
+    if (bool_value_barrier (inv_succ_flag ^ 1)) { ++ctr; continue; }
 
     /* At this point, array y stores x = L^-1 * (t - y) */
 
