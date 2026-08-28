@@ -21,8 +21,8 @@ struct tls_struct {
   /* Memory allocator structures */
   struct malloc_arena_t * malloc_arena;
 
-  /* Random number generator data structure */
-  void * gerandom_opaque_state;
+  /* Random number generator data structure, unused for the moment */
+  void * getrandom_opaque_state;
 };
 
 static inline __attribute__((always_inline)) uint16_t get_thread_id (void) {

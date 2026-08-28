@@ -39,7 +39,7 @@ int munmap (void * addr, size_t len);
    For small-class-alloc it is 32, 64, 96, ..., 512, 1024, 2048.
    It returns a pointer to the beginning of the allocated region, as well as a context pointer.
 
-   Since the buddy allocator only provides 7 sizes, we provide buddy_alloc_0, ..., buddy_alloc_7 as specialized versions of buddy_alloc.
+   Since the buddy allocator only provides 7 sizes, we provide buddy_alloc_0, ..., buddy_alloc_6 as specialized versions of buddy_alloc.
    buddy_alloc_N allocates (1 << N) pages of memory.
    We also provide buddy_free_N.
 
