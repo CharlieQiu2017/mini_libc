@@ -53,7 +53,7 @@ static void allocate_class_block (uint64_t size, struct small_class_arena_t * ar
   ptr->avail_num = avail_num;
   for (uint32_t i = 0; i < avail_num / 64; ++i) ptr->bitmap[i] = ~ 0ull;
   uint32_t avail_num_rem = avail_num % 64;
-  ptr->bitmap[avail_num / 64] = (1ull << avail_num_rem) - 1;
+  if (avail_num_rem) ptr->bitmap[avail_num / 64] = (1ull << avail_num_rem) - 1;
 }
 
 void * small_alloc (size_t len, void ** ctx_ptr, void * arena_vp) {
@@ -78,7 +78,7 @@ void * small_alloc (size_t len, void ** ctx_ptr, void * arena_vp) {
 
   struct small_class_block * block = *list_head;
   const uint32_t avail_num = (65536 - CLASS_BLOCK_HEADER_SIZE) / len;
-  for (uint32_t i = 0; i <= avail_num / 64; ++i) {
+  for (uint32_t i = 0; i < (avail_num - 1) / 64 + 1; ++i) {
     if (block->bitmap[i] != 0) {
       uint32_t idx = __builtin_ctzll (block->bitmap[i]);
       block->bitmap[i] &= ~ (1ull << idx);
