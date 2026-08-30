@@ -29,7 +29,7 @@ void ntrulpr_653_encapsulate_internal (const unsigned char * pk, const unsigned 
   /* Compute Round(bG) */
   uint16_t bg[NTRU_LPR_P];
   ntrulpr_653_poly_mult_short (g, b, NTRU_LPR_P, bg);
-  ntrulpr_653_round (bg, bg);
+  ntrulpr_653_round (bg);
   ntrulpr_653_encode_poly_round (bg, ct_out);
 
   /* Compute bottom 256 terms of b * Round(aG) */

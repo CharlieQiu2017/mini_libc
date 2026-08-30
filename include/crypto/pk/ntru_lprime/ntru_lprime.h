@@ -122,7 +122,7 @@ void ntrulpr_653_expand_seed (const unsigned char * seed, uint16_t * out_g);
 
 void ntrulpr_653_poly_mult_short (const uint16_t * g, const uint8_t * a, uint32_t out_terms, uint16_t * out);
 
-void ntrulpr_653_round (const uint16_t * g, uint16_t * out);
+void ntrulpr_653_round (uint16_t * g);
 
 void ntrulpr_653_hashshort (const unsigned char * input, uint8_t * out);
 

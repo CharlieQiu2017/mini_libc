@@ -137,10 +137,8 @@ void ntrulpr_653_poly_mult_short (const uint16_t * g, const uint8_t * a, uint32_
    If k >= (Q + 1)/2 then we have to subtract Q to get its [-Q/2, Q/2] representation.
    If k = 0 mod 3 then k - q = 2 mod 3, and we have to round upward.
    If k = 1 or 2 mod 3 then k - q = 0 or 1 mod 3, and we have to round downward.
-
-   It is safe to call this function with g == out.
  */
-void ntrulpr_653_round (const uint16_t * g, uint16_t * out) {
+void ntrulpr_653_round (uint16_t * g) {
   for (uint32_t i = 0; i < NTRU_LPR_P; ++i) {
     uint64_t coeff = g[i];
     /* Barrett reduction for 3, with max 4020 */
@@ -151,7 +149,7 @@ void ntrulpr_653_round (const uint16_t * g, uint16_t * out) {
     /* Rounding when coeff >= (Q + 1)/2 */
     uint32_t round2 = uint32_cmp_ge_branch (rem, 1, uint32_cmp_ge_branch (rem, 2, coeff - 1, coeff), coeff + 1);
     round2 = uint32_cmp_ge_branch (round2, NTRU_LPR_Q, 0, round2);
-    out[i] = uint32_cmp_ge_branch (coeff, (NTRU_LPR_Q + 1) / 2, round2, round1);
+    g[i] = uint32_cmp_ge_branch (coeff, (NTRU_LPR_Q + 1) / 2, round2, round1);
   }
 
   return;

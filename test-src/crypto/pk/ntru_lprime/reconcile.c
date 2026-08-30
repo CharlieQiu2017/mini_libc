@@ -26,7 +26,7 @@ void main (__attribute__((unused)) void * sp) {
   uint16_t ag[NTRU_LPR_P];
   // uint16_t round_ag[NTRU_LPR_P];
   ntrulpr_653_poly_mult_short (g, a, NTRU_LPR_P, ag);
-  ntrulpr_653_round (ag, ag);
+  ntrulpr_653_round (ag);
 
   /* Generate a short element b */
   unsigned char b_seed[32];
@@ -38,7 +38,7 @@ void main (__attribute__((unused)) void * sp) {
   uint16_t bg[NTRU_LPR_P];
   // uint16_t round_bg[NTRU_LPR_P];
   ntrulpr_653_poly_mult_short (g, b, NTRU_LPR_P, bg);
-  ntrulpr_653_round (bg, bg);
+  ntrulpr_653_round (bg);
 
   /* Compute b * Round(aG) */
   uint16_t b_round_ag[256];

@@ -29,7 +29,7 @@ void ntrulpr_653_gen_key_from_seed (unsigned char * sk_out, unsigned char * pk_o
   ntrulpr_653_poly_mult_short (g, sk_out, NTRU_LPR_P, ag);
 
   /* Round(aG) */
-  ntrulpr_653_round (ag, ag);
+  ntrulpr_653_round (ag);
   ntrulpr_653_encode_poly_round (ag, pk_out + 32);
 
   /* Copy public key to secret key */
