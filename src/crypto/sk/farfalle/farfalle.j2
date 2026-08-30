@@ -7,118 +7,111 @@
 
 #include <crypto/sk/farfalle/params/{{ inst.name }}.h>
 
+/* The key K of Farfalle is required to be at most (b - 1) bits where b is width of the underlying permutation (FARFALLE_PERM_LEN * 8).
+   To keep things simple, we shall only support three key lengths 16, 24, 32 bytes.
+   We assume FARFALLE_PERM_LEN is a multiple of 8. This is true of both Kravatte and Xoodoo, the two currently recommended parameter sets of Farfalle.
+ */
+
 {% for init_len in init_len_list %}
 
 #define FARFALLE_K_LEN {{ init_len }}
 
 void farfalle_{{ inst.name }}_{{ init_len }}_init (struct farfalle_{{ inst.name }}_state * st, const unsigned char * k) {
+  /* K' = pad10*(k)
+     This means set the LSB of the byte immediately after the last byte of k to 1,
+     pad with 0 bits until the total bit length is FARFALLE_PERM_LEN.
+   */
   unsigned char * k_ptr = (unsigned char *) st->k;
-
-  for (uint32_t i = 0; i < FARFALLE_K_LEN; ++i) {
-    k_ptr[i] = k[i];
-  }
-
+  memcpy (k_ptr, k, FARFALLE_K_LEN);
   k_ptr[FARFALLE_K_LEN] = 1;
+  memset (k_ptr + FARFALLE_K_LEN + 1, 0, FARFALLE_PERM_LEN - FARFALLE_K_LEN - 1);
 
-  for (uint32_t i = FARFALLE_K_LEN + 1; i < FARFALLE_PERM_LEN; ++i) {
-    k_ptr[i] = 0;
-  }
-
+  /* k <- p_b(K') */
   farfalle_perm_b (st->k);
 
-  for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-    st->k_orig[i] = st->k[i];
-  }
-
-  for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-    st->sum[i] = 0;
-  }
+  memcpy (st->k_orig, st->k, FARFALLE_PERM_LEN);
+  memset (st->sum, 0, FARFALLE_PERM_LEN);
 }
 
 #undef FARFALLE_K_LEN
 
 {% endfor %}
 
+/* The wide block cipher (WBC) mode of use does not accumulate message history.
+   Hence, allow the user to restore hash state to before ingesting any messages.
+   TODO: Allow user to restore hash state to any prefix of history.
+ */
 void farfalle_{{ inst.name }}_reset (struct farfalle_{{ inst.name }}_state * st) {
-  for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-    st->k[i] = st->k_orig[i];
-    st->sum[i] = 0;
-  }
+  memcpy (st->k, st->k_orig, FARFALLE_PERM_LEN);
+  memset (st->sum, 0, FARFALLE_PERM_LEN);
 }
 
 void farfalle_{{ inst.name }}_add_string (struct farfalle_{{ inst.name }}_state * st, const unsigned char * str, size_t str_len) {
   uint64_t p[FARFALLE_PERM_LEN / 8];
-
-  unsigned char * k_ptr = (unsigned char *) st->k;
   unsigned char * p_ptr = (unsigned char *) p;
 
+  /* split pad10*(str) into b-bit blocks.
+     Each block has a block index.
+     If, upon calling this function, st->k is equal to roll_c^I(k_orig),
+     then the first block has index I, the second block has index I + 1, etc.
+   */
+
   while (str_len >= FARFALLE_PERM_LEN) {
-    for (uint32_t i = 0; i < FARFALLE_PERM_LEN; ++i) {
-      p_ptr[i] = k_ptr[i] ^ str[i];
-    }
+    /* For each block, sum <- sum XOR p_c(block XOR roll_c^i(k_orig)) where i is block index. */
+    memcpy (p_ptr, st->k, FARFALLE_PERM_LEN); /* st->k == roll_c^i(k_orig) */
+    memxor (p_ptr, str, FARFALLE_PERM_LEN);
 
     farfalle_perm_c (p);
 
-    for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-      st->sum[i] ^= p[i];
-    }
+    memxor (st->sum, p_ptr, FARFALLE_PERM_LEN);
 
     str += FARFALLE_PERM_LEN;
     str_len -= FARFALLE_PERM_LEN;
-    farfalle_roll_c (st->k);
+    farfalle_roll_c (st->k); /* st->k == roll_c^{i+1}(k_orig) */
   }
 
-  for (uint32_t i = 0; i < str_len; ++i) {
-    p_ptr[i] = k_ptr[i] ^ str[i];
-  }
-
-  p_ptr[str_len] = k_ptr[str_len] ^ 1;
-
-  for (uint32_t i = str_len + 1; i < FARFALLE_PERM_LEN; ++i) {
-    p_ptr[i] = k_ptr[i];
-  }
+  memcpy (p_ptr, st->k, FARFALLE_PERM_LEN);
+  memxor (p_ptr, str, str_len);
+  p_ptr[str_len] ^= 1; /* Simulate pad10* */
 
   farfalle_perm_c (p);
 
-  for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-    st->sum[i] ^= p[i];
-  }
+  memxor (st->sum, p_ptr, FARFALLE_PERM_LEN);
 
+  /* Skip a blank index between two strings.
+     Hence st->k == roll_c^{i + 2}(k_orig) where i is index of last block.
+   */
   farfalle_roll_c (st->k);
   farfalle_roll_c (st->k);
 }
 
 void farfalle_{{ inst.name }}_begin_extract (struct farfalle_{{ inst.name }}_state * st) {
-  for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-    st->y[i] = st->sum[i];
-  }
-
+  /* y <- p_d(x) */
+  memcpy (st->y, st->sum, FARFALLE_PERM_LEN);
   farfalle_perm_d (st->y);
 
-  for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-    st->output_buf[i] = st->y[i];
-  }
-
+  /* Produce successive b-bit blocks as p_e(roll_e^j(y)) XOR st->k where j is output block index.
+     The first block is thus simply p_e(y).
+     After consuming each block, apply roll_e to y, compute p_e(y) XOR st->k.
+   */
+  memcpy (st->output_buf, st->y, FARFALLE_PERM_LEN);
   farfalle_perm_e (st->output_buf);
-
-  for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-    st->output_buf[i] ^= st->k[i];
-  }
+  memxor (st->output_buf, st->k, FARFALLE_PERM_LEN);
 
   st->output_offset = 0;
 }
 
+/* Kravatte-WBC and Kravatte-WBC-AE relies on "Short-Kravatte", and the spec says:
+   Short-Kravatte has the same parameters as KRAVATTE, with the sole
+   exception of p_d that is the identity function instead of KECCAK-p[1600, nr = 6].
+   Hence, this function is equivalent to farfalle_begin_extract except the farfalle_perm_d step is skipped.
+ */
 void farfalle_{{ inst.name }}_begin_extract_short (struct farfalle_{{ inst.name }}_state * st) {
-  for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-    st->y[i] = st->sum[i];
-    st->output_buf[i] = st->sum[i];
-  }
+  memcpy (st->y, st->sum, FARFALLE_PERM_LEN);
 
+  memcpy (st->output_buf, st->sum, FARFALLE_PERM_LEN);
   farfalle_perm_e (st->output_buf);
-
-  for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-    st->output_buf[i] ^= st->k[i];
-  }
+  memxor (st->output_buf, st->k, FARFALLE_PERM_LEN);
 
   st->output_offset = 0;
 }
@@ -126,62 +119,48 @@ void farfalle_{{ inst.name }}_begin_extract_short (struct farfalle_{{ inst.name 
 void farfalle_{{ inst.name }}_extract (struct farfalle_{{ inst.name }}_state * st, unsigned char * out, size_t len) {
   uint32_t off = st->output_offset;
   unsigned char * buf_ptr = (unsigned char *) st->output_buf;
-  unsigned char * k_ptr = (unsigned char *) st->k;
 
   if (len <= FARFALLE_PERM_LEN && off + len <= FARFALLE_PERM_LEN) {
-    for (uint32_t i = 0; i < len; ++i) {
-      out[i] = buf_ptr[off + i];
-    }
 
+    memcpy (out, buf_ptr + off, len);
     st->output_offset = off + len;
+
   } else {
+
     uint32_t r = FARFALLE_PERM_LEN - off;
-
-    for (uint32_t i = 0; i < r; ++i) {
-      out[i] = buf_ptr[off + i];
-    }
-
+    memcpy (out, buf_ptr + off, r);
     out += r;
     len -= r;
 
     while (len >= FARFALLE_PERM_LEN) {
       farfalle_roll_e (st->y);
 
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] = st->y[i];
-      }
-
+      memcpy (st->output_buf, st->y, FARFALLE_PERM_LEN);
       farfalle_perm_e (st->output_buf);
-
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN; ++i) {
-	out[i] = k_ptr[i] ^ buf_ptr[i];
-      }
+      memxor (st->output_buf, st->k, FARFALLE_PERM_LEN);
+      memcpy (out, st->output_buf, FARFALLE_PERM_LEN);
 
       out += FARFALLE_PERM_LEN;
       len -= FARFALLE_PERM_LEN;
     }
 
     if (len > 0) {
+
       farfalle_roll_e (st->y);
 
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] = st->y[i];
-      }
-
+      memcpy (st->output_buf, st->y, FARFALLE_PERM_LEN);
       farfalle_perm_e (st->output_buf);
-
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] ^= st->k[i];
-      }
-
-      for (uint32_t i = 0; i < len; ++i) {
-	out[i] = buf_ptr[i];
-      }
+      memxor (st->output_buf, st->k, FARFALLE_PERM_LEN);
+      memcpy (out, st->output_buf, len);
 
       st->output_offset = len;
+
     } else {
+
       st->output_offset = FARFALLE_PERM_LEN;
+
     }
+
   }
 }
 
@@ -190,54 +169,48 @@ uint64_t farfalle_{{ inst.name }}_extract_and_compare (struct farfalle_{{ inst.n
   unsigned char * buf_ptr = (unsigned char *) st->output_buf;
 
   if (len <= FARFALLE_PERM_LEN && off + len <= FARFALLE_PERM_LEN) {
+
     uint64_t result = safe_memcmp (buf_ptr + off, ref, len);
     st->output_offset = off + len;
     return result;
+
   } else {
+
     uint32_t r = FARFALLE_PERM_LEN - off;
     uint64_t result = safe_memcmp (buf_ptr + off, ref, r);
 
-    len -= r;
+    len -= r; ref += r;
 
     while (len >= FARFALLE_PERM_LEN) {
       farfalle_roll_e (st->y);
 
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] = st->y[i];
-      }
-
+      memcpy (st->output_buf, st->y, FARFALLE_PERM_LEN);
       farfalle_perm_e (st->output_buf);
+      memxor (st->output_buf, st->k, FARFALLE_PERM_LEN);
+      result |= safe_memcmp (st->output_buf, ref, FARFALLE_PERM_LEN);
 
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] ^= st->k[i];
-      }
-
-      result |= safe_memcmp (buf_ptr, ref, FARFALLE_PERM_LEN);
-
-      len -= FARFALLE_PERM_LEN;
+      len -= FARFALLE_PERM_LEN; ref += FARFALLE_PERM_LEN;
     }
 
     if (len > 0) {
+
       farfalle_roll_e (st->y);
 
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] = st->y[i];
-      }
-
+      memcpy (st->output_buf, st->y, FARFALLE_PERM_LEN);
       farfalle_perm_e (st->output_buf);
-
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] ^= st->k[i];
-      }
-
-      result |= safe_memcmp (buf_ptr, ref, len);
+      memxor (st->output_buf, st->k, FARFALLE_PERM_LEN);
+      result |= safe_memcmp (st->output_buf, ref, len);
 
       st->output_offset = len;
+
     } else {
+
       st->output_offset = FARFALLE_PERM_LEN;
+
     }
 
     return result;
+
   }
 }
 
@@ -245,39 +218,34 @@ void farfalle_{{ inst.name }}_skip_output (struct farfalle_{{ inst.name }}_state
   uint32_t off = st->output_offset;
 
   if (len <= FARFALLE_PERM_LEN && off + len <= FARFALLE_PERM_LEN) {
+
     st->output_offset = off + len;
+
   } else {
+
     len -= FARFALLE_PERM_LEN - off;
 
     while (len >= FARFALLE_PERM_LEN) {
       farfalle_roll_e (st->y);
-
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] = st->y[i];
-      }
-
-      farfalle_perm_e (st->output_buf);
-
       len -= FARFALLE_PERM_LEN;
     }
 
     if (len > 0) {
+
       farfalle_roll_e (st->y);
 
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] = st->y[i];
-      }
-
+      memcpy (st->output_buf, st->y, FARFALLE_PERM_LEN);
       farfalle_perm_e (st->output_buf);
-
-      for (uint32_t i = 0; i < FARFALLE_PERM_LEN / 8; ++i) {
-	st->output_buf[i] ^= st->k[i];
-      }
+      memxor (st->output_buf, st->k, FARFALLE_PERM_LEN);
 
       st->output_offset = len;
+
     } else {
+
       st->output_offset = FARFALLE_PERM_LEN;
+
     }
+
   }
 }
 
