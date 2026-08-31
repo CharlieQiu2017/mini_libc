@@ -7,6 +7,7 @@
 struct farfalle_kravatte_sane_state {
   struct farfalle_kravatte_state fst;
   size_t tag_len;
+  uint64_t k_orig[25];
   uint8_t parity;
 };
 

@@ -4,10 +4,15 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/* If one needs to rewind Farfalle state back to a prefix of input history,
+   simply copy the k and sum values at the checkpoint, and copy back the value upon rewinding.
+   However, one needs to call begin_extract() after rewinding, which will reset output state.
+   If one needs to preserve both input history and output state, make a full copy of farfalle_state.
+ */
+
 struct farfalle_kravatte_state {
   /* If the value of k computed upon init is k_orig, then at any given moment k = roll_c^input_block_count (k_orig) */
   uint64_t k[25];
-  uint64_t k_orig[25];
   uint64_t sum[25];
   /* If the value of y computed upon begin_extract is y_orig, then at any given moment y = roll_e^output_block_count (y_orig) */
   uint64_t y[25];
@@ -27,7 +32,6 @@ void farfalle_kravatte_roll_e (uint64_t * st);
 void farfalle_kravatte_16_init (struct farfalle_kravatte_state * st, const unsigned char * k);
 void farfalle_kravatte_24_init (struct farfalle_kravatte_state * st, const unsigned char * k);
 void farfalle_kravatte_32_init (struct farfalle_kravatte_state * st, const unsigned char * k);
-void farfalle_kravatte_reset (struct farfalle_kravatte_state * st);
 
 void farfalle_kravatte_add_string (struct farfalle_kravatte_state * st, const unsigned char * str, size_t str_len);
 void farfalle_kravatte_begin_extract (struct farfalle_kravatte_state * st);

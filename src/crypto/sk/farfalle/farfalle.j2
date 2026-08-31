@@ -29,22 +29,12 @@ void farfalle_{{ inst.name }}_{{ init_len }}_init (struct farfalle_{{ inst.name 
   /* k <- p_b(K') */
   farfalle_perm_b (st->k);
 
-  memcpy (st->k_orig, st->k, FARFALLE_PERM_LEN);
   memset (st->sum, 0, FARFALLE_PERM_LEN);
 }
 
 #undef FARFALLE_K_LEN
 
 {% endfor %}
-
-/* The wide block cipher (WBC) mode of use does not accumulate message history.
-   Hence, allow the user to restore hash state to before ingesting any messages.
-   TODO: Allow user to restore hash state to any prefix of history.
- */
-void farfalle_{{ inst.name }}_reset (struct farfalle_{{ inst.name }}_state * st) {
-  memcpy (st->k, st->k_orig, FARFALLE_PERM_LEN);
-  memset (st->sum, 0, FARFALLE_PERM_LEN);
-}
 
 void farfalle_{{ inst.name }}_add_string (struct farfalle_{{ inst.name }}_state * st, const unsigned char * str, size_t str_len) {
   uint64_t p[FARFALLE_PERM_LEN / 8];

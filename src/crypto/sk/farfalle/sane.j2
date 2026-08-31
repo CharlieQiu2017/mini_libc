@@ -18,12 +18,14 @@
 void farfalle_{{ inst.name }}_sane_{{ init_len }}_init (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * k, size_t tag_len) {
   farfalle_{{ inst.name }}_{{ init_len }}_init (&st->fst, k);
   st->tag_len = tag_len;
+  memcpy (st->k_orig, st->fst.k, FARFALLE_PERM_LEN);
 }
 
 {% endfor %}
 
 void farfalle_{{ inst.name }}_sane_start_session_common (struct farfalle_{{ inst.name }}_sane_state * st, const unsigned char * nonce, size_t nonce_len) {
-  farfalle_{{ inst.name }}_reset (&st->fst);
+  memcpy (st->fst.k, st->k_orig, FARFALLE_PERM_LEN);
+  memset (st->fst.sum, 0, FARFALLE_PERM_LEN);
   farfalle_{{ inst.name }}_add_string (&st->fst, nonce, nonce_len);
   st->parity = 0;
   farfalle_{{ inst.name }}_begin_extract (&st->fst);
