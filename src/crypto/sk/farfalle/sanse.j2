@@ -1,0 +1,169 @@
+/* SANSE mode of Farfalle
+   Does not require user to provide nonce.
+   However, identical message histories will encrypt to identical ciphertexts and tags.
+ */
+
+#include <string.h>
+#include <crypto/common.h>
+#include <crypto/sk/farfalle/farfalle.h>
+#include <crypto/sk/farfalle/farfalle_helper.h>
+#include <crypto/sk/farfalle/sanse.h>
+
+{% for inst in insts %}
+
+#include <crypto/sk/farfalle/params/{{ inst.name }}.h>
+
+{% for init_len in init_len_list %}
+
+void farfalle_{{ inst.name }}_sanse_{{ init_len }}_init (struct farfalle_{{ inst.name }}_sanse_state * st, const unsigned char * k, size_t tag_len) {
+  farfalle_{{ inst.name }}_{{ init_len }}_init (&st->fst, k);
+  st->tag_len = tag_len;
+  st->parity = 0;
+}
+
+{% endfor %}
+
+void farfalle_{{ inst.name }}_sanse_wrap (struct farfalle_{{ inst.name }}_sanse_state * st, const unsigned char * msg, size_t msg_len, const unsigned char * meta, size_t meta_len, unsigned char * ct_out, unsigned char * tag_out) {
+  struct farfalle_{{ inst.name }}_helper_state hst;
+
+  if (meta_len > 0 || msg_len == 0) {
+    /* Spec says: history <- A || 0 || parity \circ history */
+    /* There is an issue with this spec.
+       Farfalle was originally defined at bit-level,
+       so if A has n bits, then A || 0 || parity has n + 2 bits,
+       and pad10* appends the 1 bit as the (n + 3)-th bit.
+       However, this implementation only supports byte-level padding.
+       Hence, 0 || parity would be zero-extended to a whole byte before the pad10* operation.
+       In this case, 0 || parity || 0^6 would be indistinguishable from 01 || parity || 0^5 and 11 || parity || 0^5,
+       which are paddings used later for tags and ciphertexts.
+
+       We thus modify the spec to: history <- A || 00 || parity \circ history.
+       This is deliberately incompatible with reference implementation.
+     */
+
+    unsigned char final_byte = st->parity * 4;
+    farfalle_{{ inst.name }}_helper_init (&st->fst, &hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, meta, meta_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+  }
+
+  if (msg_len > 0) {
+
+    /* Store checkpoint 1 for rewinding */
+    unsigned char k1[FARFALLE_PERM_LEN];
+    unsigned char sum1[FARFALLE_PERM_LEN];
+
+    memcpy (k1, st->fst.k, FARFALLE_PERM_LEN);
+    memcpy (sum1, st->fst.sum, FARFALLE_PERM_LEN);
+
+    /* T <- 0^tag_len + F_K(P || 01 || parity \circ history) */
+    unsigned char final_byte = st->parity * 4 + 2;
+    farfalle_{{ inst.name }}_helper_init (&st->fst, &hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, msg, msg_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+    farfalle_{{ inst.name }}_begin_extract (&st->fst);
+    farfalle_{{ inst.name }}_extract (&st->fst, tag_out, st->tag_len);
+
+    /* Store checkpoint 2 for rewinding */
+    unsigned char k2[FARFALLE_PERM_LEN];
+    unsigned char sum2[FARFALLE_PERM_LEN];
+
+    memcpy (k2, st->fst.k, FARFALLE_PERM_LEN);
+    memcpy (sum2, st->fst.sum, FARFALLE_PERM_LEN);
+
+    /* Rewind */
+    memcpy (st->fst.k, k1, FARFALLE_PERM_LEN);
+    memcpy (st->fst.sum, sum1, FARFALLE_PERM_LEN);
+
+    /* C <- P + F_K(T || 11 || parity \circ history */
+    final_byte = st->parity * 4 + 3;
+    farfalle_{{ inst.name }}_helper_init (&st->fst, &hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, tag_out, st->tag_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+    farfalle_{{ inst.name }}_begin_extract (&st->fst);
+    farfalle_{{ inst.name }}_extract (&st->fst, ct_out, msg_len);
+    memxor (ct_out, msg, msg_len);
+
+    /* history <- P || 01 || parity \circ history */
+    /* Equivalent to rewinding to checkpoint 2 */
+    memcpy (st->fst.k, k2, FARFALLE_PERM_LEN);
+    memcpy (st->fst.sum, sum2, FARFALLE_PERM_LEN);
+
+  } else {
+
+    /* T <- 0^tag_len + F_K(history) */
+    farfalle_{{ inst.name }}_begin_extract (&st->fst);
+    farfalle_{{ inst.name }}_extract (&st->fst, tag_out, st->tag_len);
+
+  }
+
+  st->parity ^= 1;
+}
+
+_Bool farfalle_{{ inst.name }}_sanse_unwrap (struct farfalle_{{ inst.name }}_sanse_state * st, const unsigned char * ct, size_t ct_len, const unsigned char * meta, size_t meta_len, const unsigned char * tag, unsigned char * msg_out) {
+  /* Backup k and sum in case unwrapping fails. */
+  unsigned char k_bak[FARFALLE_PERM_LEN];
+  unsigned char sum_bak[FARFALLE_PERM_LEN];
+
+  memcpy (k_bak, st->fst.k, FARFALLE_PERM_LEN);
+  memcpy (sum_bak, st->fst.sum, FARFALLE_PERM_LEN);
+
+  struct farfalle_{{ inst.name }}_helper_state hst;
+
+  if (meta_len > 0 || ct_len == 0) {
+    /* history <- A || 00 || parity \circ history */
+    unsigned char final_byte = st->parity * 4;
+    farfalle_{{ inst.name }}_helper_init (&st->fst, &hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, meta, meta_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+  }
+
+  if (ct_len > 0) {
+    /* Store checkpoint for rewinding */
+    unsigned char k[FARFALLE_PERM_LEN];
+    unsigned char sum[FARFALLE_PERM_LEN];
+
+    memcpy (k, st->fst.k, FARFALLE_PERM_LEN);
+    memcpy (sum, st->fst.sum, FARFALLE_PERM_LEN);
+
+    /* P <- C + F_K(T || 11 || parity \circ history) */
+    unsigned char final_byte = st->parity * 4 + 3;
+    farfalle_{{ inst.name }}_helper_init (&st->fst, &hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, tag, st->tag_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+    farfalle_{{ inst.name }}_begin_extract (&st->fst);
+    farfalle_{{ inst.name }}_extract (&st->fst, msg_out, ct_len);
+    memxor (msg_out, ct, ct_len);
+
+    /* history <- P || 01 || parity \circ history */
+    memcpy (st->fst.k, k, FARFALLE_PERM_LEN);
+    memcpy (st->fst.sum, sum, FARFALLE_PERM_LEN);
+
+    final_byte = st->parity * 4 + 2;
+    farfalle_{{ inst.name }}_helper_init (&st->fst, &hst);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, msg_out, ct_len);
+    farfalle_{{ inst.name }}_add_string_part (&st->fst, &hst, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st->fst, &hst);
+  }
+
+  /* T' <- 0^tag_len + F_K(history) */
+  farfalle_{{ inst.name }}_begin_extract (&st->fst);
+  uint64_t result = uint64_to_bool (farfalle_{{ inst.name }}_extract_and_compare (&st->fst, tag, st->tag_len));
+
+  /* Rewind if unwrap fails */
+  cond_memcpy (result, st->fst.k, k_bak, FARFALLE_PERM_LEN);
+  cond_memcpy (result, st->fst.sum, sum_bak, FARFALLE_PERM_LEN);
+
+  st->parity ^= ! result;
+
+  return ! result;
+}
+
+#include <crypto/sk/farfalle/params/clear.h>
+
+{% endfor %}
