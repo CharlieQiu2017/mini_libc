@@ -1,0 +1,329 @@
+/* Wide-block cipher mode of Farfalle */
+
+#include <stdint.h>
+#include <string.h>
+#include <crypto/common.h>
+#include <crypto/hash/keccak/keccak_p.h>
+#include <crypto/sk/farfalle/farfalle.h>
+#include <crypto/sk/farfalle/farfalle_helper.h>
+#include <crypto/sk/farfalle/wbc.h>
+
+{% for inst in insts %}
+
+#include <crypto/sk/farfalle/params/{{ inst.name }}.h>
+
+{% for init_len in init_len_list %}
+
+#define FARFALLE_K_LEN {{ init_len }}
+
+/* See farfalle_init */
+void farfalle_{{ inst.name }}_wbc_{{ init_len }}_init (struct farfalle_{{ inst.name }}_wbc_state * st, const unsigned char * k) {
+  unsigned char * k_ptr = (unsigned char *) st->k;
+  memcpy (k_ptr, k, FARFALLE_K_LEN);
+  k_ptr[FARFALLE_K_LEN] = 1;
+  memset (k_ptr + FARFALLE_K_LEN + 1, 0, FARFALLE_PERM_LEN - FARFALLE_K_LEN - 1);
+  farfalle_perm_b (st->k);
+}
+
+#undef FARFALLE_K_LEN
+
+{% endfor %}
+
+/* Spec: The function split returns a value n_L that minimizes m_L + m_R,
+   where m_L is the number of b-bit blocks to hold the L string in the WBC algorithm,
+   and m_R is defined similarly for R.
+
+   If we put k bytes into L, then L would take k + 2 bytes,
+   because WBC adds one byte of padding, and Farfalle itself adds another.
+   This is deliberately different from the spec. The spec uses bit-level
+   padding, so L takes (8 * k + 2) bits rather than (k + 2) bytes.
+   This implementation consistently uses byte-level padding since it is easier.
+   Hence if block_len <= FARFALLE_PERM_LEN * 2 - 4,
+   then one block of L and one block of R is sufficient.
+   We put (block_len + 1) / 2 bytes into L, so R has block_len / 2 bytes.
+
+   When block_len > FARFALLE_PERM_LEN * 2 - 4, the spec makes three considerations:
+   (1) m_L + m_R should be exactly equal to ceil((block_len + 4) / FARFALLE_PERM_LEN).
+   (2) At least one branch L or R should be a power of two that is as large as possible.
+   (3) The other branch cannot be too small, we should put at least FARFALLE_PERM_LEN - 2 bytes into it.
+       However, adding more bytes into one branch does not increase security since
+       it is bounded by the distinguishing advantage of the underlying permutation.
+
+   We follow a modified version of the spec that calculates the split as follows:
+   1. q = ceil((block_len + 4) / FARFALLE_PERM_LEN). Note that q >= 3.
+   2. x = largest integer such that 2^x < q. Note that x >= 1.
+   3. n_L = (q - 2^x) * FARFALLE_PERM_LEN - 2.
+
+   Hence L will consist of exactly (q - 2^x) full blocks, and L >= FARFALLE_PERM_LEN - 2.
+   Also, R consists of 2^x blocks, but the last block may be only partially full.
+ */
+size_t farfalle_{{ inst.name }}_wbc_split (size_t block_len) {
+  if (block_len <= FARFALLE_PERM_LEN * 2 - 4) {
+    return (block_len + 1) / 2;
+  } else {
+    size_t q = (block_len + 4 - 1) / FARFALLE_PERM_LEN + 1;
+    uint32_t x = 63 - __builtin_clzll (q - 1); /* x <= 63 because q < 2^64 */
+    return (q - (1ull << x)) * FARFALLE_PERM_LEN - 2;
+  }
+}
+
+void farfalle_{{ inst.name }}_wbc_encrypt (const struct farfalle_{{ inst.name }}_wbc_state * st, const unsigned char * block, size_t block_len, const unsigned char * tweak, size_t tweak_len, unsigned char * out) {
+  /* Define L as first n_L bytes of block, R as last n_R bytes of block */
+  const size_t nl = farfalle_{{ inst.name }}_wbc_split (block_len);
+  const size_t nr = block_len - nl;
+  const size_t nl_zero = nl > FARFALLE_PERM_LEN ? FARFALLE_PERM_LEN : nl;
+  const size_t nr_zero = nr > FARFALLE_PERM_LEN ? FARFALLE_PERM_LEN : nr;
+
+  struct farfalle_{{ inst.name }}_state st_tmp;
+  struct farfalle_{{ inst.name }}_helper_state hst_tmp;
+
+  /* R0 <- R0 + H_K(L || 0) with R0 the first min(FARFALLE_PERM_LEN, |R|) bytes of R. */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    unsigned char final_byte = 0;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, block, nl);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    /* H_K is instantiated with Short-Kravatte */
+    farfalle_{{ inst.name }}_begin_extract_short (&st_tmp);
+    farfalle_{{ inst.name }}_extract (&st_tmp, out + nl, nr_zero);
+    memxor (out + nl, block + nl, nr_zero);
+  }
+
+  /* L <- L + G_K(R || 1 \circ W) where W is tweak */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    farfalle_{{ inst.name }}_add_string (&st_tmp, tweak, tweak_len);
+
+    unsigned char final_byte = 1;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out + nl, nr_zero);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, block + nl + nr_zero, nr - nr_zero);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract (&st_tmp);
+    farfalle_{{ inst.name }}_extract (&st_tmp, out, nl);
+    memxor (out, block, nl);
+  }
+
+  /* R <- R + G_K(L || 0 \circ W) */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    farfalle_{{ inst.name }}_add_string (&st_tmp, tweak, tweak_len);
+
+    unsigned char final_byte = 0;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out, nl);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract (&st_tmp);
+    farfalle_{{ inst.name }}_extract_xor (&st_tmp, out + nl, nr_zero);
+    farfalle_{{ inst.name }}_extract (&st_tmp, out + nl + nr_zero, nr - nr_zero);
+    memxor (out + nl + nr_zero, block + nl + nr_zero, nr - nr_zero);
+  }
+
+  /* L0 <- L0 + H_K(R || 1) with L0 the first min(FARFALLE_PERM_LEN, |L|) bytes of L */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    unsigned char final_byte = 1;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out + nl, nr);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract_short (&st_tmp);
+    farfalle_{{ inst.name }}_extract_xor (&st_tmp, out, nl_zero);
+  }
+}
+
+void farfalle_{{ inst.name }}_wbc_decrypt (const struct farfalle_{{ inst.name }}_wbc_state * st, const unsigned char * ct, size_t ct_len, const unsigned char * tweak, size_t tweak_len, unsigned char * out) {
+  /* Define L as first n_L bytes of block, R as last n_R bytes of block */
+  const size_t nl = farfalle_{{ inst.name }}_wbc_split (ct_len);
+  const size_t nr = ct_len - nl;
+  const size_t nl_zero = nl > FARFALLE_PERM_LEN ? FARFALLE_PERM_LEN : nl;
+  const size_t nr_zero = nr > FARFALLE_PERM_LEN ? FARFALLE_PERM_LEN : nr;
+
+  struct farfalle_{{ inst.name }}_state st_tmp;
+  struct farfalle_{{ inst.name }}_helper_state hst_tmp;
+
+  /* L0 <- L0 + H_K(R || 1) with L0 the first min(FARFALLE_PERM_LEN, |L|) bytes of L */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    unsigned char final_byte = 1;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, ct + nl, nr);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract_short (&st_tmp);
+    farfalle_{{ inst.name }}_extract (&st_tmp, out, nl_zero);
+    memxor (out, ct, nl_zero);
+  }
+
+  /* R <- R + G_K(L || 0 \circ W) */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    farfalle_{{ inst.name }}_add_string (&st_tmp, tweak, tweak_len);
+
+    unsigned char final_byte = 0;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out, nl_zero);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, ct + nl_zero, nl - nl_zero);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract (&st_tmp);
+    farfalle_{{ inst.name }}_extract (&st_tmp, out + nl, nr);
+    memxor (out + nl, ct + nl, nr);
+  }
+
+  /* L <- L + G_K(R || 1 \circ W) */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    farfalle_{{ inst.name }}_add_string (&st_tmp, tweak, tweak_len);
+
+    unsigned char final_byte = 1;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out + nl, nr);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract (&st_tmp);
+    farfalle_{{ inst.name }}_extract_xor (&st_tmp, out, nl_zero);
+    farfalle_{{ inst.name }}_extract (&st_tmp, out + nl_zero, nl - nl_zero);
+    memxor (out + nl_zero, ct + nl_zero, nl - nl_zero);
+  }
+
+  /* R0 <- R0 + H_K(L || 0) with R0 the first min(FARFALLE_PERM_LEN, |R|) bytes of R. */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    unsigned char final_byte = 0;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out, nl);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract_short (&st_tmp);
+    farfalle_{{ inst.name }}_extract_xor (&st_tmp, out + nl, nr_zero);
+  }
+}
+
+/* AE-Wrap(key, block, meta) is defined as Encrypt(key = key, block = block || 0^tag_len, tweak = meta).
+   Note that this means out length = block_len + tag_len.
+   AE-Unwrap(key, ct, meta) is defined as Decrypt(key = key, ct = ct, tweak = meta).
+   After decryption, check that the last tag_len bytes of msg are 0.
+ */
+
+/*
+   In theory we should implement ae_wrap using wbc_encrypt.
+   However, the issue is that AE requires appending a byte-sequence of length tag_len to the plaintext.
+   This means we cannot provide the block as a single contiguous array.
+   Hence, we have to inline the enc/dec logic in these functions.
+ */
+void farfalle_{{ inst.name }}_wbc_ae_wrap (const struct farfalle_{{ inst.name }}_wbc_state * st, const unsigned char * block, size_t block_len, const unsigned char * meta, size_t meta_len, size_t tag_len, unsigned char * out) {
+  memcpy (out, block, block_len);
+  memset (out + block_len, 0, tag_len);
+
+  const size_t nl = farfalle_{{ inst.name }}_wbc_split (block_len + tag_len);
+  const size_t nr = block_len + tag_len - nl;
+  const size_t nl_zero = nl > FARFALLE_PERM_LEN ? FARFALLE_PERM_LEN : nl;
+  const size_t nr_zero = nr > FARFALLE_PERM_LEN ? FARFALLE_PERM_LEN : nr;
+
+  struct farfalle_{{ inst.name }}_state st_tmp;
+  struct farfalle_{{ inst.name }}_helper_state hst_tmp;
+
+  /* R0 <- R0 + H_K(L || 0) with R0 the first min(FARFALLE_PERM_LEN, |R|) bytes of R. */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    unsigned char final_byte = 0;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out, nl);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    /* H_K is instantiated with Short-Kravatte */
+    farfalle_{{ inst.name }}_begin_extract_short (&st_tmp);
+    farfalle_{{ inst.name }}_extract_xor (&st_tmp, out + nl, nr_zero);
+  }
+
+  /* L <- L + G_K(R || 1 \circ W) where W is tweak */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    farfalle_{{ inst.name }}_add_string (&st_tmp, meta, meta_len);
+
+    unsigned char final_byte = 1;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out + nl, nr);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract (&st_tmp);
+    farfalle_{{ inst.name }}_extract_xor (&st_tmp, out, nl);
+  }
+
+  /* R <- R + G_K(L || 0 \circ W) */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    farfalle_{{ inst.name }}_add_string (&st_tmp, meta, meta_len);
+
+    unsigned char final_byte = 0;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out, nl);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract (&st_tmp);
+    farfalle_{{ inst.name }}_extract_xor (&st_tmp, out + nl, nr);
+  }
+
+  /* L0 <- L0 + H_K(R || 1) with L0 the first min(FARFALLE_PERM_LEN, |L|) bytes of L */
+  {
+    memcpy (st_tmp.k, st->k, FARFALLE_PERM_LEN);
+    memset (st_tmp.sum, 0, FARFALLE_PERM_LEN);
+
+    unsigned char final_byte = 1;
+    farfalle_{{ inst.name }}_helper_init (&st_tmp, &hst_tmp);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, out + nl, nr);
+    farfalle_{{ inst.name }}_add_string_part (&st_tmp, &hst_tmp, &final_byte, 1);
+    farfalle_{{ inst.name }}_finalize_string (&st_tmp, &hst_tmp);
+
+    farfalle_{{ inst.name }}_begin_extract_short (&st_tmp);
+    farfalle_{{ inst.name }}_extract_xor (&st_tmp, out, nl_zero);
+  }
+}
+
+/* ae_unwrap can be implemented more easily by assuming the caller will provide a buffer of size block_len + tag_len */
+_Bool farfalle_{{ inst.name }}_wbc_ae_unwrap (const struct farfalle_{{ inst.name }}_wbc_state * st, const unsigned char * ct, size_t ct_len, const unsigned char * meta, size_t meta_len, size_t tag_len, unsigned char * msg_out) {
+  farfalle_{{ inst.name }}_wbc_decrypt (st, ct, ct_len, meta, meta_len, msg_out);
+  return ! uint64_to_bool (memcmp_zero (msg_out + ct_len - tag_len, tag_len));
+}
+
+#include <crypto/sk/farfalle/params/clear.h>
+
+{% endfor %}

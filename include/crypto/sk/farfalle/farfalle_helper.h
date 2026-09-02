@@ -16,7 +16,7 @@ struct farfalle_kravatte_helper_state {
   uint32_t offset_ctr; /* Index of first byte of p not XOR'ed with str */
 };
 
-static inline void farfalle_kravatte_helper_init (struct farfalle_kravatte_state * st, struct farfalle_kravatte_helper_state * hst) {
+static inline void farfalle_kravatte_helper_init (const struct farfalle_kravatte_state * st, struct farfalle_kravatte_helper_state * hst) {
   memcpy (hst->p, st->k, 200);
   hst->offset_ctr = 0;
 }

@@ -154,6 +154,54 @@ void farfalle_{{ inst.name }}_extract (struct farfalle_{{ inst.name }}_state * s
   }
 }
 
+void farfalle_{{ inst.name }}_extract_xor (struct farfalle_{{ inst.name }}_state * st, unsigned char * out, size_t len) {
+  uint32_t off = st->output_offset;
+  unsigned char * buf_ptr = (unsigned char *) st->output_buf;
+
+  if (len <= FARFALLE_PERM_LEN && off + len <= FARFALLE_PERM_LEN) {
+
+    memxor (out, buf_ptr + off, len);
+    st->output_offset = off + len;
+
+  } else {
+
+    uint32_t r = FARFALLE_PERM_LEN - off;
+    memxor (out, buf_ptr + off, r);
+    out += r;
+    len -= r;
+
+    while (len >= FARFALLE_PERM_LEN) {
+      farfalle_roll_e (st->y);
+
+      memcpy (st->output_buf, st->y, FARFALLE_PERM_LEN);
+      farfalle_perm_e (st->output_buf);
+      memxor (st->output_buf, st->k, FARFALLE_PERM_LEN);
+      memxor (out, st->output_buf, FARFALLE_PERM_LEN);
+
+      out += FARFALLE_PERM_LEN;
+      len -= FARFALLE_PERM_LEN;
+    }
+
+    if (len > 0) {
+
+      farfalle_roll_e (st->y);
+
+      memcpy (st->output_buf, st->y, FARFALLE_PERM_LEN);
+      farfalle_perm_e (st->output_buf);
+      memxor (st->output_buf, st->k, FARFALLE_PERM_LEN);
+      memxor (out, st->output_buf, len);
+
+      st->output_offset = len;
+
+    } else {
+
+      st->output_offset = FARFALLE_PERM_LEN;
+
+    }
+
+  }
+}
+
 uint64_t farfalle_{{ inst.name }}_extract_and_compare (struct farfalle_{{ inst.name }}_state * st, const unsigned char * ref, size_t len) {
   uint32_t off = st->output_offset;
   unsigned char * buf_ptr = (unsigned char *) st->output_buf;
