@@ -9,36 +9,36 @@
 #include <stdint.h>
 #include <crypto/common.h>
 
-/* We shall assume that every call to this function has 1 < len <= (1u << 31).
-   Hence, len_log2 == ceil(log2(len)) == 32 - __builtin_clz (len - 1) and len_log2 <= 31.
+/* We shall assume that every call to this function has 1 < len <= (1ull << 63).
+   Hence, len_log2 == ceil(log2(len)) == 64 - __builtin_clzll (len - 1) and len_log2 <= 63.
    Currently, every caller to this function has input length determined at compile time,
-   so ensuring 1 < len <= (1 << 31) is not a problem.
+   so ensuring 1 < len <= (1ull << 63) is not a problem.
    If a new caller sorts an array with runtime-determined length, review the above requirements.
  */
 
 void safe_sort_uint32 (uint32_t * input, size_t len) {
-  const uint32_t len_log2 = 32 - __builtin_clz (len - 1);
+  const uint32_t len_log2 = 64 - __builtin_clzll (len - 1);
 
   for (uint32_t i = 1; i <= len_log2; i++) {
-    const uint32_t mask1 = (1u << (len_log2 - i)) - 1;
-    const uint32_t mask2 = ((1u << i) - 1) << (len_log2 - i);
+    const uint64_t mask1 = (1ull << (len_log2 - i)) - 1;
+    const uint64_t mask2 = ((1ull << i) - 1) << (len_log2 - i);
 
-    for (uint32_t u = 0; /* TRUE */; u++) {
-      uint32_t offset1 = (u & mask1) | ((u & mask2) << 1);
-      uint32_t offset2 = offset1 + (1u << (len_log2 - i));
+    for (uint64_t u = 0; /* TRUE */; u++) {
+      uint64_t offset1 = (u & mask1) | ((u & mask2) << 1);
+      uint64_t offset2 = offset1 + (1ull << (len_log2 - i));
       if (offset2 >= len) break;
       uint32_t x = input[offset1], y = input[offset2], sum = x + y;
-      uint32_t lo = uint32_min (x, y), hi = sum - u;
+      uint32_t lo = uint32_min (x, y), hi = sum - lo;
       input[offset1] = lo; input[offset2] = hi;
     }
 
     for (uint32_t t = 1; t < i; t++) {
-      for (uint32_t u = (1u << (len_log2 - t - 1)); /* TRUE */; u++) {
-	uint32_t offset2 = (u & mask1) | ((u & mask2) << 1);
-	uint32_t offset1 = offset2 + (1u << (len_log2 - i)) - (1u << (len_log2 - t));
+      for (uint64_t u = (1ull << (len_log2 - t - 1)); /* TRUE */; u++) {
+	uint64_t offset2 = (u & mask1) | ((u & mask2) << 1);
+	uint64_t offset1 = offset2 + (1ull << (len_log2 - i)) - (1ull << (len_log2 - t));
 	if (offset2 >= len) break;
 	uint32_t x = input[offset1], y = input[offset2], sum = x + y;
-	uint32_t lo = uint32_min (x, y), hi = sum - u;
+	uint32_t lo = uint32_min (x, y), hi = sum - lo;
 	input[offset1] = lo; input[offset2] = hi;
       }
     }
@@ -46,28 +46,28 @@ void safe_sort_uint32 (uint32_t * input, size_t len) {
 }
 
 void safe_sort_uint64 (uint64_t * input, size_t len) {
-  const uint32_t len_log2 = 32 - __builtin_clz (len - 1);
+  const uint32_t len_log2 = 64 - __builtin_clzll (len - 1);
 
   for (uint32_t i = 1; i <= len_log2; i++) {
-    const uint32_t mask1 = (1u << (len_log2 - i)) - 1;
-    const uint32_t mask2 = ((1u << i) - 1) << (len_log2 - i);
+    const uint64_t mask1 = (1ull << (len_log2 - i)) - 1;
+    const uint64_t mask2 = ((1ull << i) - 1) << (len_log2 - i);
 
-    for (uint32_t u = 0; /* TRUE */; u++) {
-      uint32_t offset1 = (u & mask1) | ((u & mask2) << 1);
-      uint32_t offset2 = offset1 + (1u << (len_log2 - i));
+    for (uint64_t u = 0; /* TRUE */; u++) {
+      uint64_t offset1 = (u & mask1) | ((u & mask2) << 1);
+      uint64_t offset2 = offset1 + (1ull << (len_log2 - i));
       if (offset2 >= len) break;
       uint64_t x = input[offset1], y = input[offset2], sum = x + y;
-      uint64_t lo = uint64_min (x, y), hi = sum - u;
+      uint64_t lo = uint64_min (x, y), hi = sum - lo;
       input[offset1] = lo; input[offset2] = hi;
     }
 
     for (uint32_t t = 1; t < i; t++) {
-      for (uint32_t u = (1u << (len_log2 - t - 1)); /* TRUE */; u++) {
-	uint32_t offset2 = (u & mask1) | ((u & mask2) << 1);
-	uint32_t offset1 = offset2 + (1u << (len_log2 - i)) - (1u << (len_log2 - t));
+      for (uint64_t u = (1ull << (len_log2 - t - 1)); /* TRUE */; u++) {
+	uint64_t offset2 = (u & mask1) | ((u & mask2) << 1);
+	uint64_t offset1 = offset2 + (1ull << (len_log2 - i)) - (1ull << (len_log2 - t));
 	if (offset2 >= len) break;
 	uint64_t x = input[offset1], y = input[offset2], sum = x + y;
-	uint64_t lo = uint64_min (x, y), hi = sum - u;
+	uint64_t lo = uint64_min (x, y), hi = sum - lo;
 	input[offset1] = lo; input[offset2] = hi;
       }
     }
