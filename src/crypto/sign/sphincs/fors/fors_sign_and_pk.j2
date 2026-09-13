@@ -11,9 +11,10 @@
    out: SPHINCS_K * (SPHINCS_A + 1) * SPHINCS_N bytes
    pk_out: SPHINCS_N bytes
 
-   Calls:
-   fors_tree_sign_and_pk: SPHINCS_K times, no output assumptions, no output data dependence
-   sphincs_fors_compress: 1 time, no output assumptions, no output data dependence
+   External calls:
+   fors_msg_to_indices: 1 time, 0 <= indices[i] < 2 ^ SPHINCS_A, control flow dependence on output data
+   fors_tree_sign_and_pk: SPHINCS_K times, no assumptions, no output data dependence
+   hash_t: 1 time, no assumptions, no output data dependence
  */
 
 {% for inst in insts %}

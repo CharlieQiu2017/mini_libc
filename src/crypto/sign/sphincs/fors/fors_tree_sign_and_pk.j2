@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 #include <crypto/sign/sphincs/adrs.h>
 #include <crypto/sign/sphincs/hash.h>
 #include <crypto/sign/sphincs/fors.h>
@@ -8,14 +9,15 @@
    tree_addr_swapped: No assumptions, no data dependence
    keypair_swapped: No assumptions, no data dependence
    idx_tree: No assumptions, no data dependence
-   idx_leaf: 0 ~ (1 << SPHINCS_A) - 1, control flow dependence
+   idx_leaf: 0 <= idx_leaf < 2 ^ SPHINCS_A, control flow dependence
+   (If idx_leaf >= 2 ^ SPHINCS_A, the first SPHINCS_N bytes of out will not be written, and subsequent accesses cause UB)
    out: (SPHINCS_A + 1) * SPHINCS_N bytes
    pk_out: SPHINCS_N bytes
 
-   Calls:
-   sphincs_prf: 1 << SPHINCS_A times, no output assumptions, no output data dependence
-   sphincs_f: 1 << SPHINCS_A times, no output assumptions, no output data dependence
-   sphincs_h: (1 << SPHINCS_A) - 1 times, no output assumptions, no output data dependence
+   External calls:
+   hash_prf: 2 ^ SPHINCS_A times, no assumptions, no output data dependence
+   hash_f: 2 ^ SPHINCS_A times, no assumptions, no output data dependence
+   hash_h: 2 ^ SPHINCS_A - 1 times, no assumptions, no output data dependence
  */
 
 {% for inst in insts %}
@@ -40,9 +42,7 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_fors_tree_sign_and_pk (const unsi
     sphincs_adrs_set_word7 (adrs, __builtin_bswap32 (idx));
     sphincs_hash_prf (pk_seed, sk_seed, adrs, tmp);
 
-    if (i == idx_leaf) {
-      for (uint32_t j = 0; j < SPHINCS_N; ++j) out[j] = tmp[j];
-    }
+    if (i == idx_leaf) memcpy (out, tmp, SPHINCS_N);
 
     uint32_t pos = __builtin_popcount (i);
     sphincs_adrs_set_type (adrs, SPHINCS_FORS_TREE);
@@ -56,9 +56,9 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_fors_tree_sign_and_pk (const unsi
 
       if (i >> h == idx_leaf >> h) {
 	if (idx_leaf & (1u << (h - 1))) {
-	  for (uint32_t k = 0; k < SPHINCS_N; ++k) out[h * SPHINCS_N + k] = keys[j - 1][k];
+	  memcpy (out + h * SPHINCS_N, keys[j - 1], SPHINCS_N);
 	} else {
-	  for (uint32_t k = 0; k < SPHINCS_N; ++k) out[h * SPHINCS_N + k] = keys[j][k];
+	  memcpy (out + h * SPHINCS_N, keys[j], SPHINCS_N);
 	}
       }
 
@@ -68,11 +68,11 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_fors_tree_sign_and_pk (const unsi
       sphincs_adrs_set_word6 (adrs, h << 24);
       sphincs_adrs_set_word7 (adrs, __builtin_bswap32 (idx_));
       sphincs_hash_h (pk_seed, adrs, keys[j - 1], keys[j], tmp);
-      for (uint32_t k = 0; k < SPHINCS_N; ++k) keys[j - 1][k] = tmp[k];
+      memcpy (keys[j - 1], tmp, SPHINCS_N);
     }
   }
 
-  for (uint32_t i = 0; i < SPHINCS_N; ++i) pk_out[i] = keys[0][i];
+  memcpy (pk_out, keys[0], SPHINCS_N);
 }
 
 #include <crypto/sign/sphincs/params/clear.h>

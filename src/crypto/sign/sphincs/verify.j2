@@ -8,6 +8,17 @@
 #include <crypto/sign/sphincs/ht.h>
 #include <crypto/sign/sphincs/sphincs.h>
 
+/* pk: 2 * SPHINCS_N bytes, no assumptions, control flow dependence due to digest computation
+   msg: Length specified by msg_len, no assumptions, control flow dependence due to digest computation
+   msg_len: No assumptions within reasonable size, control flow dependence due to digest computation
+   sig: SPHINCS_N + SPHINCS_K * (SPHINCS_A + 1) * SPHINCS_N + SPHINCS_D * (SPHINCS_WLEN + SPHINCS_XH) * SPHINCS_N bytes, no assumptions, control flow dependence due to being used to compute fors_pk, and calls to ht_sig_to_pk
+
+   External calls:
+   hash_h_msg: 1 time, no assumptions, control flow dependence on output data
+   fors_sig_to_pk: 1 time, no assumptions, control flow dependence on output data
+   ht_sig_to_pk: 1 time, no assumptions, no output data dependence
+ */
+
 {% for inst in insts %}
 
 #include <crypto/sign/sphincs/params/params_{{ inst.secbit }}_{{ inst.hash }}.h>

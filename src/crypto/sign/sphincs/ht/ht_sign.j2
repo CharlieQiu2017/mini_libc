@@ -4,6 +4,17 @@
 #include <crypto/sign/sphincs/xmss.h>
 #include <crypto/sign/sphincs/ht.h>
 
+/* pk_seed: SPHINCS_N bytes, no assumptions, no data dependence
+   sk_seed: SPHINCS_N bytes, no assumptions, no data dependence
+   idx_tree: No assumptions, control flow dependence due to calls to xmss_sign_and_pk
+   idx_leaf: 0 <= idx_leaf < 2 ^ SPHINCS_XH, control flow dependence due to calls to xmss_sign_and_pk
+   msg: SPHINCS_N bytes, no assumptions, control flow dependence due to calls to xmss_sign_and_pk
+   out: SPHINCS_D * (SPHINCS_WLEN + SPHINCS_XH) * SPHINCS_N bytes
+
+   External calls:
+   xmss_sign_and_pk: SPHINCS_D times, no assumptions, control flow dependence on output data due to subsequent calls to xmss_sign_and_pk
+ */
+
 {% for inst in insts %}
 
 #include <crypto/sign/sphincs/params/params_{{ inst.secbit }}_{{ inst.hash }}.h>

@@ -1,8 +1,20 @@
 #include <stdint.h>
+#include <string.h>
 #include <crypto/sign/sphincs/params/common.h>
 #include <crypto/sign/sphincs/adrs.h>
 #include <crypto/sign/sphincs/xmss.h>
 #include <crypto/sign/sphincs/ht.h>
+
+/* pk_seed: SPHINCS_N bytes, no assumptions, no data dependence
+   idx_tree: No assumptions, control flow dependence due to calls to xmss_sig_to_pk
+   idx_leaf: No assumptions, control flow dependence due to calls to xmss_sig_to_pk
+   msg: SPHINCS_N bytes, no assumptions, control flow dependence due to calls to xmss_sig_to_pk
+   sig: SPHINCS_D * (SPHINCS_WLEN + SPHINCS_XH) * SPHINCS_N bytes, no assumptions, no data dependence
+   out: SPHINCS_N bytes
+
+   External calls:
+   xmss_sig_to_pk: SPHINCS_D times, no assumptions, control flow dependence on output data
+ */
 
 {% for inst in insts %}
 
@@ -22,9 +34,9 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_ht_sig_to_pk (const unsigned char
     idx_tree >>= SPHINCS_XH;
   }
   if (SPHINCS_D & 1) {
-    for (uint32_t i = 0; i < SPHINCS_N; ++i) out[i] = tmp2[i];
+    memcpy (out, tmp2, SPHINCS_N);
   } else {
-    for (uint32_t i = 0; i < SPHINCS_N; ++i) out[i] = tmp1[i];
+    memcpy (out, tmp1, SPHINCS_N);
   }
 }
 

@@ -1,9 +1,26 @@
 #include <stdint.h>
+#include <string.h>
 #include <crypto/sign/sphincs/params/common.h>
 #include <crypto/sign/sphincs/adrs.h>
 #include <crypto/sign/sphincs/hash.h>
 #include <crypto/sign/sphincs/wots.h>
 #include <crypto/sign/sphincs/xmss.h>
+
+/* pk_seed: SPHINCS_N bytes, no assumptions, no data dependence
+   sk_seed: SPHINCS_N bytes, no assumptions, no data dependence
+   layer: No assumptions, no data dependence
+   tree_addr_swapped: No assumptions, no data dependence
+   keypair: 0 <= keypair < 2 ^ SPHINCS_XH, control flow dependence
+   (keypair >= 2 ^ SPHINCS_XH is UB in the following sense: xmss_sign_and_pk will never call sphincs_wots_sign_and_pk, and accessing the first SPHINCS_WLEN * SPHINCS_N bytes of out will trigger UB)
+   msg: SPHINCS_N bytes, no assumptions, control flow dependence due to call to wots_sign_and_pk
+   out: (SPHINCS_WLEN + SPHINCS_XH) * SPHINCS_N bytes
+   pk_out: SPHINCS_N bytes
+
+   External calls:
+   wots_sign_and_pk: 1 time, no assumptions, no output data dependence
+   wots_gen_pk: 2 ^ SPHINCS_XH - 1 times, no assumptions, no output data dependence
+   hash_h: 2 ^ SPHINCS_XH - 1 times, no assumptions, no output data dependence
+ */
 
 {% for inst in insts %}
 
@@ -35,9 +52,9 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_xmss_sign_and_pk (const unsigned 
 
       if (i >> h == keypair >> h) {
 	if (keypair & (1u << (h - 1))) {
-	  for (uint32_t k = 0; k < SPHINCS_N; ++k) out[(SPHINCS_WLEN + h - 1) * SPHINCS_N + k] = keys[j - 1][k];
+	  memcpy (out + (SPHINCS_WLEN + h - 1) * SPHINCS_N, keys[j - 1], SPHINCS_N);
 	} else {
-	  for (uint32_t k = 0; k < SPHINCS_N; ++k) out[(SPHINCS_WLEN + h - 1) * SPHINCS_N + k] = keys[j][k];
+	  memcpy (out + (SPHINCS_WLEN + h - 1) * SPHINCS_N, keys[j], SPHINCS_N);
 	}
       }
 
@@ -45,11 +62,11 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_xmss_sign_and_pk (const unsigned 
       sphincs_adrs_set_word6 (adrs, h << 24);
       sphincs_adrs_set_word7 (adrs, (i >> h) << 24);
       sphincs_hash_h (pk_seed, adrs, keys[j - 1], keys[j], tmp);
-      for (uint32_t k = 0; k < SPHINCS_N; ++k) keys[j - 1][k] = tmp[k];
+      memcpy (keys[j - 1], tmp, SPHINCS_N);
     }
   }
 
-  for (uint32_t i = 0; i < SPHINCS_N; ++i) pk_out[i] = keys[0][i];
+  memcpy (pk_out, keys[0], SPHINCS_N);
 }
 
 #include <crypto/sign/sphincs/params/clear.h>

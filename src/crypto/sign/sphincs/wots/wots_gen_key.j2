@@ -10,6 +10,9 @@
    tree_addr_swapped: No assumptions, no data dependence
    keypair_swapped: No assumptions, no data dependence
    out: SPHINCS_WLEN * SPHINCS_N bytes
+
+   External calls:
+   hash_prf: SPHINCS_WLEN times, no assumptions, no output data dependence
  */
 
 {% for inst in insts %}

@@ -1,9 +1,21 @@
 #include <stdint.h>
+#include <string.h>
 #include <crypto/sign/sphincs/params/common.h>
 #include <crypto/sign/sphincs/adrs.h>
 #include <crypto/sign/sphincs/hash.h>
 #include <crypto/sign/sphincs/wots.h>
 #include <crypto/sign/sphincs/xmss.h>
+
+/* pk_seed: SPHINCS_N bytes, no assumptions, no data dependence
+   sk_seed: SPHINCS_N bytes, no assumptions, no data dependence
+   layer: No assumptions, no data dependence
+   tree_addr_swapped: No assumptions, no data dependence
+   pk_out: SPHINCS_N bytes
+
+   External calls:
+   wots_gen_pk: 2 ^ SPHINCS_XH times, no assumptions, no output data dependence
+   hash_h: 2 ^ SPHINCS_XH - 1 times, no assumptions, no output data dependence
+ */
 
 {% for inst in insts %}
 
@@ -31,11 +43,11 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_xmss_gen_pk (const unsigned char 
       sphincs_adrs_set_word6 (adrs, h << 24);
       sphincs_adrs_set_word7 (adrs, (i >> h) << 24);
       sphincs_hash_h (pk_seed, adrs, keys[j - 1], keys[j], tmp);
-      for (uint32_t k = 0; k < SPHINCS_N; ++k) keys[j - 1][k] = tmp[k];
+      memcpy (keys[j - 1], tmp, SPHINCS_N);
     }
   }
 
-  for (uint32_t i = 0; i < SPHINCS_N; ++i) pk_out[i] = keys[0][i];
+  memcpy (pk_out, keys[0], SPHINCS_N);
 }
 
 #include <crypto/sign/sphincs/params/clear.h>

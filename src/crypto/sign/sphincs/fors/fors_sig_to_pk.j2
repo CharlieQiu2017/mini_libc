@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 #include <crypto/sign/sphincs/adrs.h>
 #include <crypto/sign/sphincs/hash.h>
 #include <crypto/sign/sphincs/fors.h>
@@ -9,6 +10,12 @@
    msg: SPHINCS_MD_BYTES bytes, no assumptions, control flow dependence
    sig: SPHINCS_K * (SPHINCS_A + 1) * SPHINCS_N bytes, no assumptions, no data dependence
    pk_out: SPHINCS_N bytes
+
+   External calls:
+   fors_msg_to_indices: 1 time, no assumptions, control flow dependence on output data
+   hash_f: SPHINCS_K times, no assumptions, no output data dependence
+   hash_h: SPHINCS_K * SPHINCS_A times, no assumptions, no output data dependence
+   hash_t: one time, no assumptions, no output data dependence
  */
 
 {% for inst in insts %}
@@ -57,9 +64,9 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_fors_sig_to_pk (const unsigned ch
     }
 
     if (SPHINCS_A & 1) {
-      for (uint32_t j = 0; j < SPHINCS_N; ++j) roots[i * SPHINCS_N + j] = tmp2[j];
+      memcpy (roots + i * SPHINCS_N, tmp2, SPHINCS_N);
     } else {
-      for (uint32_t j = 0; j < SPHINCS_N; ++j) roots[i * SPHINCS_N + j] = tmp1[j];
+      memcpy (roots + i * SPHINCS_N, tmp1, SPHINCS_N);
     }
   }
 

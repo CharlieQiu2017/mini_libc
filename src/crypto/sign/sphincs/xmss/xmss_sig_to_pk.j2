@@ -1,9 +1,23 @@
 #include <stdint.h>
+#include <string.h>
 #include <crypto/sign/sphincs/params/common.h>
 #include <crypto/sign/sphincs/adrs.h>
 #include <crypto/sign/sphincs/hash.h>
 #include <crypto/sign/sphincs/wots.h>
 #include <crypto/sign/sphincs/xmss.h>
+
+/* pk_seed: SPHINCS_N bytes, no assumptions, no data dependence
+   layer: No assumptions, no data dependence
+   tree_addr_swapped: No assumptions, no data dependence
+   keypair: No assumptions, control flow dependence (note that keypair >= 2 ^ SPHINCS_XH will not induce UB, unlike xmss_sign_and_pk)
+   msg: SPHINCS_N bytes, no assumptions, control flow dependence due to call to wots_sig_to_pk
+   sig: (SPHINCS_WLEN + SPHINCS_XH) * SPHINCS_N bytes, no assumptions, no data dependence
+   pk_out: SPHINCS_N bytes
+
+   External calls:
+   wots_sig_to_pk: 1 time, no assumptions, no output data dependence
+   hash_h: SPHINCS_XH times, no assumptions, no output data dependence
+ */
 
 {% for inst in insts %}
 
@@ -38,9 +52,9 @@ void sphincs_{{ inst.secbit }}_{{ inst.hash }}_xmss_sig_to_pk (const unsigned ch
   }
 
   if (SPHINCS_XH & 1) {
-    for (uint32_t i = 0; i < SPHINCS_N; ++i) pk_out[i] = tmp2[i];
+    memcpy (pk_out, tmp2, SPHINCS_N);
   } else {
-    for (uint32_t i = 0; i < SPHINCS_N; ++i) pk_out[i] = tmp1[i];
+    memcpy (pk_out, tmp1, SPHINCS_N);
   }
 }
 
