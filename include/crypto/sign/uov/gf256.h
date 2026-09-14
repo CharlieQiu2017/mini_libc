@@ -11,6 +11,12 @@
 #include <arm_neon.h>
 #include <crypto/common.h>
 
+#ifdef __cplusplus
+#ifndef _Bool
+#define _Bool bool
+#endif
+#endif
+
 /* We work in the field F_{2^8} = F_2[x] / (x^8 + x^4 + x^3 + x + 1) */
 #define UOV_FIELD_REP 0x1b
 /* The quotient of x^15 reduced by (x^8 + x^4 + x^3 + x + 1) */

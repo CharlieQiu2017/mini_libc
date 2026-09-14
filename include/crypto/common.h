@@ -6,6 +6,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+#ifndef _Bool
+#define _Bool bool
+#endif
+#endif
+
 /* This function simply returns its input.
    It prevents the compiler from making assumptions on the value of input.
  */

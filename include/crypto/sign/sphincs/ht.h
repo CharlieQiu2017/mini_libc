@@ -3,10 +3,18 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void sphincs_128f_shake_simple_ht_gen_pk (const unsigned char * pk_seed, const unsigned char * sk_seed, unsigned char * pk_out);
 
 void sphincs_128f_shake_simple_ht_sign (const unsigned char * pk_seed, const unsigned char * sk_seed, uint64_t idx_tree, uint16_t idx_leaf, const unsigned char * msg, unsigned char * out);
 
 void sphincs_128f_shake_simple_ht_sig_to_pk (const unsigned char * pk_seed, uint64_t idx_tree, uint16_t idx_leaf, const unsigned char * msg, const unsigned char * sig, unsigned char * out);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -12,6 +12,9 @@ struct farfalle_kravatte_wbc_state {
 };
 
 #ifdef __cplusplus
+#ifndef _Bool
+#define _Bool bool
+#endif
 extern "C" {
 #endif
 

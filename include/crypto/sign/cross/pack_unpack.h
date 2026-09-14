@@ -5,6 +5,13 @@
 #include <stddef.h>
 #include <crypto/sign/cross/parameters.h>
 
+#ifdef __cplusplus
+#ifndef _Bool
+#define _Bool bool
+#endif
+extern "C" {
+#endif
+
 void pack_syndrome (const uint16_t * in, uint8_t * out);
 void pack_resp_v (const uint8_t * in, uint8_t * out);
 void pack_resp_y (const uint16_t * in, uint8_t * out);
@@ -12,5 +19,9 @@ void pack_resp_y (const uint16_t * in, uint8_t * out);
 _Bool unpack_syndrome (const uint8_t * in, uint16_t * out);
 _Bool unpack_resp_v (const uint8_t * in, uint8_t * out);
 _Bool unpack_resp_y (const uint8_t * in, uint16_t * out);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

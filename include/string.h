@@ -6,6 +6,9 @@
 
 #ifdef __cplusplus
 #define restrict
+#ifndef _Bool
+#define _Bool bool
+#endif
 extern "C" {
 #endif
 
