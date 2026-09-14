@@ -24,6 +24,7 @@
 #define sphincs_ht_sign sphincs_128f_shake_simple_ht_sign
 #define sphincs_ht_sig_to_pk sphincs_128f_shake_simple_ht_sig_to_pk
 #define sphincs_gen_key sphincs_128f_shake_simple_gen_key
+#define sphincs_sign_from_rand sphincs_128f_shake_simple_sign_from_rand
 #define sphincs_sign sphincs_128f_shake_simple_sign
 #define sphincs_sign_randomize sphincs_128f_shake_simple_sign_randomize
 #define sphincs_verify sphincs_128f_shake_simple_verify

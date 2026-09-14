@@ -24,6 +24,7 @@
 #undef sphincs_ht_sign
 #undef sphincs_ht_sig_to_pk
 #undef sphincs_gen_key
+#undef sphincs_sign_from_rand
 #undef sphincs_sign
 #undef sphincs_sign_randomize
 #undef sphincs_verify

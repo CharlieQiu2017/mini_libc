@@ -13,6 +13,8 @@ extern "C" {
 
 void sphincs_128f_shake_simple_gen_key (unsigned char * sk_out, unsigned char * pk_out);
 
+void sphincs_128f_shake_simple_sign_from_rand (const unsigned char * sk, const unsigned char * msg, size_t msg_len, const unsigned char * randomness, unsigned char * out);
+
 void sphincs_128f_shake_simple_sign (const unsigned char * sk, const unsigned char * msg, size_t msg_len, unsigned char * out);
 
 void sphincs_128f_shake_simple_sign_randomize (const unsigned char * sk, const unsigned char * msg, size_t msg_len, unsigned char * out);
