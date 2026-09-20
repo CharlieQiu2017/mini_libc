@@ -73,7 +73,9 @@ struct in_addr {
 };
 
 /* Special IP addresses */
-/* Since AArch64 is little-endian, the left-most component of IP is placed in the last byte.
+/* These values are conventionally defined assuming the machine uses network order (big-endian).
+   For example, 0x7f000001 encoded in big-endian is 0x7f 0x00 0x00 0x01, which is 127.0.0.1.
+   However, since AArch64 is little-endian, the exact same integer literal gives a reversed byte order.
    Use htons() to correct it.
  */
 
