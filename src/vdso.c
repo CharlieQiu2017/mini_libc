@@ -41,19 +41,34 @@ void interpret_vdso_from_auxv (void * auxv) {
 
   while (dyn_ent->d_tag != DT_NULL) {
     if (dyn_ent->d_tag == DT_STRTAB) {
-      strtab = (void *)(((uintptr_t) ehdr) + dyn_ent->d_ptr);
+      /* If the pointer is larger than ehdr base address, then it is already relocated.
+	 This occurs under QEMU user emulation.
+       */
+      strtab = (void *)(dyn_ent->d_ptr);
+      if (((uintptr_t) strtab) < ((uintptr_t) ehdr)) {
+	strtab = (void *)(((uintptr_t) ehdr) + ((uintptr_t) strtab));
+      }
     }
 
     if (dyn_ent->d_tag == DT_SYMTAB) {
-      symtab = (void *)(((uintptr_t) ehdr) + dyn_ent->d_ptr);
+      symtab = (void *)(dyn_ent->d_ptr);
+      if (((uintptr_t) symtab) < ((uintptr_t) ehdr)) {
+	symtab = (void *)(((uintptr_t) ehdr) + ((uintptr_t) symtab));
+      }
     }
 
     if (dyn_ent->d_tag == DT_HASH) {
-      hash = (void *)(((uintptr_t) ehdr) + dyn_ent->d_ptr);
+      hash = (void *)(dyn_ent->d_ptr);
+      if (((uintptr_t) hash) < ((uintptr_t) ehdr)) {
+	hash = (void *)(((uintptr_t) ehdr) + ((uintptr_t) hash));
+      }
     }
 
     if (dyn_ent->d_tag == DT_GNU_HASH) {
-      gnuhash = (void *)(((uintptr_t) ehdr) + dyn_ent->d_ptr);
+      gnuhash = (void *)(dyn_ent->d_ptr);
+      if (((uintptr_t) gnuhash) < ((uintptr_t) ehdr)) {
+	gnuhash = (void *)(((uintptr_t) ehdr) + ((uintptr_t) gnuhash));
+      }
     }
 
     dyn_ent++;
