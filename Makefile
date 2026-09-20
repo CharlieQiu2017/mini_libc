@@ -9,7 +9,7 @@ WARNFLAGS = -Wall -Wextra -pedantic -Werror -Wfatal-errors
 ARCHFLAGS = -march=armv8-a+crc+crypto -mtune=cortex-a72.cortex-a53
 PROTFLAGS = -fomit-frame-pointer -fno-asynchronous-unwind-tables -fcf-protection=none -fno-stack-protector -fno-stack-clash-protection -fno-ident
 GCFLAGS = -ffunction-sections
-LDFLAGS = -nostdlib -static --no-dynamic-linker -e _start --gc-sections --build-id=none -T default.lds
+LDFLAGS = -nostdlib -static --no-dynamic-linker -z max-page-size=4096 -e _start --gc-sections --build-id=none
 
 # If we choose to optimize the code, then we cannot debug it
 
@@ -32,7 +32,13 @@ else
   endif # ifeq($(debug),1)
 endif # ifeq ($(optimize),1)
 
-LIBGCC = /opt/aarch64-none-elf/lib/gcc/aarch64-none-elf/14.2.0/libgcc.a
+ifeq ($(pie),1)
+  LDFLAGS += -pie -T default_pic.lds
+else
+  LDFLAGS += -T default.lds
+endif
+
+LIBGCC = /opt/aarch64-none-elf/lib/gcc/aarch64-none-elf/16.2.0/libgcc.a
 
 INCFLAGS = -I ./include
 EXTFLAGS = 

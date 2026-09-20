@@ -5,13 +5,13 @@ PHDRS {
 }
 
 SECTIONS {
-  . = 0x10000 ;
-  . += SIZEOF_HEADERS ;
+  . = 0x400000 ;
+  . = . + SIZEOF_HEADERS ;
   .text : { *(.text*) } :text
   .rodata : { *(.rodata*) } :text
   . = ALIGN(0x1000) ;
   .data : { *(.data*) } :data
-  .bss : { *(.bss) } :data
-  .got : { *(.got) } :data
-  .got.plt : { *(.got.plt) } :data
+  /* Mark .bss with KEEP so data segment will not be empty. Ensure VirtAddr of data != 0. */
+  .bss : { KEEP(*(.bss)) *(COMMON) } :data
+  /DISCARD/ : { *(.comment) *(.note.*) }
 }
