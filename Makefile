@@ -7,9 +7,10 @@ STDFLAGS = -std=c11
 FREEFLAGS = -nostdlib -ffreestanding
 WARNFLAGS = -Wall -Wextra -pedantic -Werror -Wfatal-errors
 ARCHFLAGS = -march=armv8-a+crc+crypto -mtune=cortex-a72.cortex-a53
-PROTFLAGS = -fomit-frame-pointer -fno-asynchronous-unwind-tables -fcf-protection=none -fno-stack-protector -fno-stack-clash-protection -fno-ident
-GCFLAGS = -ffunction-sections
-LDFLAGS = -nostdlib -static --no-dynamic-linker -z max-page-size=4096 -e _start --gc-sections --build-id=none
+PROTFLAGS = -fomit-frame-pointer -fno-asynchronous-unwind-tables -fcf-protection=none -fno-stack-protector -fno-stack-clash-protection -fno-ident -fno-jump-tables
+PIEFLAGS = -fPIE
+GCFLAGS = -fvisibility=hidden -ffunction-sections
+LDFLAGS = -nostdlib --no-dynamic-linker -z max-page-size=4096 -e _start --gc-sections --build-id=none
 
 # If we choose to optimize the code, then we cannot debug it
 
@@ -33,9 +34,9 @@ else
 endif # ifeq ($(optimize),1)
 
 ifeq ($(pie),1)
-  LDFLAGS += -pie -T default_pic.lds
+  LDFLAGS += -shared -Bsymbolic -T default_pic.lds
 else
-  LDFLAGS += -T default.lds
+  LDFLAGS += -static -T default.lds
 endif
 
 LIBGCC = /opt/aarch64-none-elf/lib/gcc/aarch64-none-elf/16.2.0/libgcc.a
@@ -43,7 +44,7 @@ LIBGCC = /opt/aarch64-none-elf/lib/gcc/aarch64-none-elf/16.2.0/libgcc.a
 INCFLAGS = -I ./include
 EXTFLAGS = 
 
-CFLAGS = $(STDFLAGS) $(FREEFLAGS) $(WARNFLAGS) $(ARCHFLAGS) $(PROTFLAGS) $(GCFLAGS) $(OPTFLAGS) $(INCFLAGS) $(EXTFLAGS)
+CFLAGS = $(STDFLAGS) $(FREEFLAGS) $(WARNFLAGS) $(ARCHFLAGS) $(PROTFLAGS) $(PIEFLAGS) $(GCFLAGS) $(OPTFLAGS) $(INCFLAGS) $(EXTFLAGS)
 
 # Template sources
 # These files must be first processed by Jinja2
@@ -66,7 +67,7 @@ LIBC_TEST_OBJS = $(patsubst test-src/%.c,test-bin/%.o,$(LIBC_TEST_SRCS))
 LIBC_TEST_BINS = $(patsubst test-src/%.c,test-bin/%,$(LIBC_TEST_SRCS))
 LIBC_TEST_OBJ_DIRS = $(sort $(patsubst %/,%,$(dir $(LIBC_TEST_OBJS))))
 
-all: crt.o libc.a libc_pic.a $(LIBC_TEST_BINS)
+all: crt.o libc.a $(LIBC_TEST_BINS)
 
 archive:
 	tar -C .. -czf ../mini_libc.tar.gz mini_libc
@@ -95,25 +96,16 @@ tmp/%.c : src/%.j2 src/%.json
 obj/%.o : tmp/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/%.lo : src/%.c
-	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
-
-obj/%.lo : tmp/%.c
-	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
-
 test-bin/%.o : test-src/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 libc.a : $(LIBC_OBJS)
 	$(AR) rc $@ $^
 
-libc_pic.a : $(LIBC_LOBJS)
-	$(AR) rc $@ $^
-
 test-bin/% : test-bin/%.o libc.a
 	$(LD) $(LDFLAGS) -o $@ crt.o $^ $(LIBGCC)
 
 clean :
-	$(RM) -r obj test-bin tmp crt.o libc.a libc_pic.a
+	$(RM) -r obj test-bin tmp crt.o libc.a
 
 .PHONY : all clean archive

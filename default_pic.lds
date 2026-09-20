@@ -11,8 +11,8 @@ SECTIONS {
   .rodata : { *(.rodata*) } :text
   . = ALIGN(0x1000) ;
   .data : { *(.data*) } :data
+  .got : { *(.got) } :data
+  .got.plt : { *(.got.plt) } :data
   .bss : { KEEP(*(.bss)) *(COMMON) } :data
-  .got : { *(.got) } : data
-  .got.plt : { *(.got.plt) } : data
-  /DISCARD/ : { *(.dynamic) *(.dynsym) *(.dynstr) *(.hash) }
+  /DISCARD/ : { *(.plt) *(.interp) *(.dynamic) *(.dynsym) *(.dynstr) *(.hash) }
 }
