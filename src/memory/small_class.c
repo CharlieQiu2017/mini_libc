@@ -9,6 +9,7 @@
 struct small_class_block {
   void *buddy_ctx;
   /* See buddy.c for the invariants we maintain for linked lists. */
+  struct small_class_block *prev_block, *next_block;
   struct small_class_block *prev_avail_block, *next_avail_block;
   uint64_t bitmap[32];
   uint64_t avail_num;
@@ -45,10 +46,14 @@ static void allocate_class_block (uint64_t size, struct small_class_arena_t * ar
   if (ptr == NULL) return;
   ptr->buddy_ctx = buddy_ctx;
   ptr->prev_avail_block = NULL;
+  ptr->prev_block = NULL;
 
   ptr->next_avail_block = *list_head;
   if (*list_head != NULL) (*list_head)->prev_avail_block = ptr;
   *list_head = ptr;
+  ptr->next_block = arena->block_list;
+  if (arena->block_list != NULL) arena->block_list->prev_block = ptr;
+  arena->block_list = ptr;
 
   const uint32_t avail_num = (65536 - CLASS_BLOCK_HEADER_SIZE) / size;
   ptr->avail_num = avail_num;
@@ -130,6 +135,9 @@ void small_free (void * ptr, void * ctx, size_t len, void * arena_vp) {
       if (block->prev_avail_block != NULL) block->prev_avail_block->next_avail_block = block->next_avail_block;
       if (block->next_avail_block != NULL) block->next_avail_block->prev_avail_block = block->prev_avail_block;
       if (*list_head == block) *list_head = block->next_avail_block;
+      if (block->prev_block != NULL) block->prev_block->next_block = block->next_block;
+      if (block->next_block != NULL) block->next_block->prev_block = block->prev_block;
+      if (arena->block_list == block) arena->block_list = block->next_block;
       buddy_free_4 (block, block->buddy_ctx, arena->buddy_arena);
     }
   }

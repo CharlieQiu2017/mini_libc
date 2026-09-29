@@ -29,13 +29,14 @@ int munmap (void * addr, size_t len);
    Each layer implements two functions:
    void * X_alloc (size_t len, void ** ctx_ptr, void * arena);
    void X_free (void * ptr, void * ctx, size_t len, void * arena);
+   These APIs are considered internal to malloc and not public-facing.
+   (mmap_free does not need the length parameter)
 
-   arena is a pointer to a per-thread data structure that manages all allocations made by this thread.
-   However, since mmap-alloc is stateless, its functions do not have this st_ptr argument.
+   arena is a pointer to a per-thread data structure that manages all allocations made by this thread and this allocator.
 
    X_alloc attempts to allocate a block of memory of given length.
    For each layer, the len argument must belong to a predetermined set.
-   For mmap-alloc it is any multiple of 4096 smaller than 1 << 48.
+   For mmap-alloc it is any multiple of 4096 smaller than 1ull << 48.
    For buddy-alloc it is 4096, 8192, ..., 262144.
    For small-class-alloc it is 32, 64, 96, ..., 512, 1024, 2048.
    It returns a pointer to the beginning of the allocated region, as well as a context pointer.
@@ -49,14 +50,27 @@ int munmap (void * addr, size_t len);
    len must be the length argument used to call alloc.
    arena must be the state pointer used to call alloc.
    ptr can be any address that is within the allocated region.
-   For mmap_alloc, the context pointer and returned pointer are identical.
+
+   This implementation of malloc is designed so that starting from the per-thread arena structure, one can scan through every malloc made by this thread.
+   Moreover, we provide aligned_tagged_alloc() which is to assist implementing tagged allocations.
  */
+
+/* The mmap-alloc arena structure */
+
+struct mmap_record_group;
+struct mmap_record;
+
+struct mmap_arena_t {
+  struct mmap_record_group *group_list_head;
+  struct mmap_record *active_list_head;
+  struct mmap_record *inactive_list_head;
+};
 
 /* Interfaces of mmap-alloc */
 
-void * mmap_alloc (size_t len, void ** ctx_ptr);
+void * mmap_alloc (size_t len, void ** ctx_ptr, void * arena);
 
-void mmap_free (__attribute__((unused)) void * ptr, void * ctx, size_t len);
+void mmap_free (__attribute__((unused)) void * ptr, void * ctx, void * arena);
 
 /* The buddy-alloc arena structure */
 
@@ -64,6 +78,7 @@ struct buddy_chunk_state;
 struct buddy_chunk_state_group;
 
 struct buddy_arena_t {
+  struct mmap_arena_t *mmap_arena;
   struct buddy_chunk_state_group *group_list_head;
   struct buddy_chunk_state *empty_list_head;
   struct buddy_chunk_state *avail6_list_head;
@@ -115,6 +130,7 @@ struct small_class_arena_t {
   struct small_class_block *small_class_avail_lists[16];
   struct small_class_block *class1024_avail_list;
   struct small_class_block *class2048_avail_list;
+  struct small_class_block *block_list;
 };
 
 void * small_alloc (size_t len, void ** ctx_ptr, void * arena);
@@ -124,6 +140,7 @@ void small_free (void * ptr, void * ctx, size_t len, void * arena);
 /* Per-thread malloc data structure */
 
 struct malloc_arena_t {
+  struct mmap_arena_t mmap_arena;
   struct buddy_arena_t buddy_arena;
   struct small_class_arena_t small_class_arena;
   void * free_set_head;
@@ -131,9 +148,17 @@ struct malloc_arena_t {
   void * free_set_placeholder;
 };
 
+/* The following functions are considered public API. */
+
 void * malloc_with_arena (size_t size, struct malloc_arena_t * arena);
 
+/* Calling this function with alignment not being a power of two is UB. */
 void * aligned_alloc_with_arena (size_t alignment, size_t size, struct malloc_arena_t * arena);
+
+/* Like aligned_alloc, except that the returned pointer contains an 16-byte header that the caller can use to store metadata.
+   It is guaranteed that ptr is aligned to 8, and (ptr + 16) is aligned to "alignment".
+ */
+void * aligned_tagged_alloc_with_arena (size_t alignment, size_t size, struct malloc_arena_t * arena);
 
 void free_with_arena (void * ptr, struct malloc_arena_t * arena);
 
@@ -145,6 +170,8 @@ void malloc_init (void);
 void * malloc (size_t len);
 
 void * aligned_alloc (size_t alignment, size_t size);
+
+void * aligned_tagged_alloc (size_t alignment, size_t size);
 
 void free (void * ptr);
 
