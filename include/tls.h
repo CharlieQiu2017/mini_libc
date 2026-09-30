@@ -32,7 +32,7 @@ static inline __attribute__((always_inline)) uint16_t get_thread_id (void) {
   return ((struct tls_struct *) get_thread_pointer ()) -> thread_id;
 }
 
-static inline __attribute__((always_inline)) uint64_t fetch_inc_counter (void) {
+static inline __attribute__((always_inline)) uint64_t get_tls_counter (void) {
   struct tls_struct * tls = (struct tls_struct *) get_thread_pointer ();
   uint64_t ctr = tls->counter++;
   return (ctr & ((1ull << 50) - 1)) | (((uint64_t) tls->thread_id) << 50);
