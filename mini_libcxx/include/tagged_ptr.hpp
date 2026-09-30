@@ -577,6 +577,7 @@ public:
      Then, under constexpr, this code creates storage for raw_dyn_array < U >
      which can then be initialized to emulate storage for a dynamic-length array.
      Under the non-constexpr context, this code creates storage for the dynamic-length array directly.
+     Use std::start_lifetime_as_array() to create the virtual array object.
      Users of such use-cases MUST use if consteval to differentiate between consteval and real contexts.
 
      This function take an additional parameter called alloc_id.
@@ -617,7 +618,6 @@ public:
     tagged_ptr result;
     if consteval {
       result.ptr_constexpr = minilib::allocator < minilib::detail::tagged_ptr_constexpr_impl < T > > :: allocate (1);
-      /* If constexpr allocate fails, the compiler will complain. */
       minilib::construct_at < minilib::detail::tagged_ptr_constexpr_impl < T > > (result.ptr_constexpr);
       result.ptr_constexpr->id = id;
       result.ptr_constexpr->is_counter = true;
@@ -626,9 +626,6 @@ public:
     } else {
       result.ptr_real = reinterpret_cast < uintptr_t > (aligned_tagged_alloc (alignof (T), sizeof (T)));
       if (result.ptr_real == 0) std::terminate ();
-      /* Below we call default_construct_at (which should be no-op) to avoid a technical UB.
-	 Since fundamental types are trivially destructible, we do not need to call destroy_at during deallocation.
-       */
       uint64_t * id_ptr = reinterpret_cast < uint64_t * > (result.ptr_real);
       minilib::default_construct_at < uint64_t > (id_ptr);
       *id_ptr = id;
