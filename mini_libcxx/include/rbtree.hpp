@@ -1441,6 +1441,15 @@ public:
     return res;
   }
 
+  constexpr handle_type left_unsafe (const handle_type& h) const {
+    handle_type res;
+    auto p = ptr_type::from_counted_ref (h).data_unsafe ()->left;
+    if (p) {
+      p.create_counted_ref (res);
+    }
+    return res;
+  }
+
   constexpr handle_type right (const handle_type& h) const {
     auto runtime = get_runtime ();
     if (! h.check (runtime->container_id)) std::terminate ();
@@ -1452,9 +1461,27 @@ public:
     return res;
   }
 
+  constexpr handle_type right_unsafe (const handle_type& h) const {
+    handle_type res;
+    auto p = ptr_type::from_counted_ref (h).data_unsafe ()->right;
+    if (p) {
+      p.create_counted_ref (res);
+    }
+    return res;
+  }
+
   constexpr handle_type parent (const handle_type& h) const {
     auto runtime = get_runtime ();
     if (! h.check (runtime->container_id)) std::terminate ();
+    handle_type res;
+    auto p = ptr_type::from_counted_ref (h).data_unsafe ()->parent;
+    if (p) {
+      p.create_counted_ref (res);
+    }
+    return res;
+  }
+
+  constexpr handle_type parent_unsafe (const handle_type& h) const {
     handle_type res;
     auto p = ptr_type::from_counted_ref (h).data_unsafe ()->parent;
     if (p) {
@@ -1481,6 +1508,17 @@ public:
 
   constexpr const T * data_unsafe (const handle_type& h) const {
     return ptr_type::from_counted_ref (h).data_unsafe ()->storage.data ();
+  }
+
+  /* Check handle validity */
+  constexpr bool check (const handle_type& h) const {
+    auto runtime = get_runtime ();
+    return h.check (runtime->container_id);
+  }
+
+  constexpr uint32_t check_maybe_null (const handle_type& h) const {
+    auto runtime = get_runtime ();
+    return h.check_maybe_null (runtime->container_id);
   }
 };
 

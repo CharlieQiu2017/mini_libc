@@ -305,6 +305,30 @@ public:
     }
   }
 
+  /* For containers which allow null. Returns 0 if null, 1 if invalid, 2 if valid */
+  constexpr uint32_t check_maybe_null (uint64_t id) const {
+    if consteval {
+      if (ptr_constexpr == nullptr) return 0;
+      if (ptr_constexpr->id != id) return 1;
+      return (ptr_constexpr->counter & (1ull << 62)) == 0 ? 2 : 1;
+    } else {
+      if (ptr_real == 0) return 0;
+      uint64_t * id_ptr = reinterpret_cast < uint64_t * > (ptr_real);
+      size_t * ctr_ptr = reinterpret_cast < size_t * > (ptr_real + 8);
+      if (*id_ptr != id) return 1;
+      return ((*ctr_ptr) & (1ull << 62)) == 0 ? 2 : 1;
+    }
+  }
+
+  /* For cases where one is certain this is not a tombstone, and only needs to know if it is not nullptr */
+  constexpr bool is_not_null () const {
+    if consteval {
+      return ! (ptr_constexpr == nullptr);
+    } else {
+      return ! (ptr_real == 0);
+    }
+  }
+
   /* In theory, we could do an ID check here, but we choose not to for performance.
      For example, in an RB-tree lookup, the container only has to check the ID once, not at every comparison.
    */
@@ -518,6 +542,27 @@ public:
       uint64_t * id_ptr = reinterpret_cast < uint64_t * > (ptr_real);
       if (*id_ptr != id) return false;
       return true;
+    }
+  }
+
+  constexpr uint32_t check_maybe_null (uint64_t id) const {
+    if consteval {
+      if (ptr_constexpr == nullptr) return 0;
+      if (ptr_constexpr->id != id) return 1;
+      return 2;
+    } else {
+      if (ptr_real == 0) return 0;
+      uint64_t * id_ptr = reinterpret_cast < uint64_t * > (ptr_real);
+      if (*id_ptr != id) return 1;
+      return 2;
+    }
+  }
+
+  constexpr bool is_not_null () const {
+    if consteval {
+      return ! (ptr_constexpr == nullptr);
+    } else {
+      return ! (ptr_real == 0);
     }
   }
 

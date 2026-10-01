@@ -128,7 +128,6 @@ public:
     return tree_.data (h)->value_ptr ();
   }
 
-private:
   /* Unsafe node accessors */
   constexpr const Key& key_unsafe (const handle_type& h) const {
     return tree_.data_unsafe (h)->key ();
@@ -154,7 +153,6 @@ private:
     return tree_.data_unsafe (h)->value_ptr ();
   }
 
-public:
   /* Navigation helpers */
   constexpr handle_type root () const { return tree_.root (); }
   constexpr handle_type left (const handle_type& h) const { return tree_.left (h); }
@@ -165,7 +163,7 @@ public:
     auto curr = tree_.root ();
     if (! curr) return curr;
     while (true) {
-      auto l = tree_.left (curr);
+      auto l = tree_.left_unsafe (curr);
       if (! l) return curr;
       curr = l;
     }
@@ -175,46 +173,50 @@ public:
     auto curr = tree_.root ();
     if (! curr) return curr;
     while (true) {
-      auto r = tree_.right (curr);
+      auto r = tree_.right_unsafe (curr);
       if (! r) return curr;
       curr = r;
     }
   }
 
   constexpr handle_type next (const handle_type& h) const {
-    if (! h) return handle_type ();
-    auto r = tree_.right (h);
-    if (r) {
+    uint32_t check = tree_.check_maybe_null (h);
+    if (check == 0) return handle_type ();
+    if (check == 1) std::terminate ();
+    auto r = tree_.right_unsafe (h);
+    if (r.is_not_null ()) {
       auto curr = r;
       while (true) {
-        auto l = tree_.left (curr);
-        if (! l) return curr;
+        auto l = tree_.left_unsafe (curr);
+        if (! l.is_not_null ()) return curr;
         curr = l;
       }
     }
     auto curr = h;
-    auto p = tree_.parent (curr);
-    while (p && same_handle (tree_.right (p), curr)) {
+    auto p = tree_.parent_unsafe (curr);
+    while (p.is_not_null () && same_handle (tree_.right_unsafe (p), curr)) {
       curr = p;
-      p = tree_.parent (p);
+      p = tree_.parent_unsafe (p);
     }
     return p;
   }
 
   constexpr handle_type prev (const handle_type& h) const {
-    if (! h) return handle_type ();
-    auto l = tree_.left (h);
-    if (l) {
+    uint32_t check = tree_.check_maybe_null (h);
+    if (check == 0) return handle_type ();
+    if (check == 1) std::terminate ();
+    auto l = tree_.left_unsafe (h);
+    if (l.is_not_null ()) {
       auto curr = l;
       while (true) {
-        auto r = tree_.right (curr);
-        if (! r) return curr;
+        auto r = tree_.right_unsafe (curr);
+        if (! r.is_not_null ()) return curr;
         curr = r;
       }
     }
     auto curr = h;
-    auto p = tree_.parent (curr);
-    while (p && same_handle (tree_.left (p), curr)) {
+    auto p = tree_.parent_unsafe (curr);
+    while (p.is_not_null () && same_handle (tree_.left_unsafe (p), curr)) {
       curr = p;
       p = tree_.parent (p);
     }
@@ -226,13 +228,13 @@ public:
   requires (minilib::three_way_comparable_with < const K&, const Key& >)
   constexpr handle_type search (const K& k) const {
     auto curr = tree_.root ();
-    while (curr) {
-      auto res = minilib::compare_three_way::operator () (k, tree_.data (curr)->key ());
+    while (curr.is_not_null ()) {
+      auto res = minilib::compare_three_way::operator () (k, tree_.data_unsafe (curr)->key ());
       if (res == 0) return curr;
       if (res < 0) {
-        curr = tree_.left (curr);
+        curr = tree_.left_unsafe (curr);
       } else {
-        curr = tree_.right (curr);
+        curr = tree_.right_unsafe (curr);
       }
     }
     return handle_type ();
@@ -281,8 +283,8 @@ public:
         return minilib::pair < bool, handle_type > (false, curr);
       }
       if (res < 0) {
-        auto nxt = tree_.left (curr);
-        if (nxt) {
+        auto nxt = tree_.left_unsafe (curr);
+        if (nxt.is_not_null ()) {
           curr = nxt;
         } else {
           handle_type h = tree_.emplace_left (curr);
@@ -292,8 +294,8 @@ public:
           return minilib::pair < bool, handle_type > (true, h);
         }
       } else {
-        auto nxt = tree_.right (curr);
-        if (nxt) {
+        auto nxt = tree_.right_unsafe (curr);
+        if (nxt.is_not_null ()) {
           curr = nxt;
         } else {
           handle_type h = tree_.emplace_right (curr);
@@ -380,7 +382,7 @@ public:
   requires (minilib::three_way_comparable_with < const K&, const Key& > && minilib::is_destructible_v < Key > && minilib::is_destructible_v < Value >)
   constexpr bool remove (const K& k) {
     auto h = search (k);
-    if (h) {
+    if (h.is_not_null ()) {
       remove (h);
       return true;
     }
