@@ -98,6 +98,16 @@ struct compare_three_way {
   }
 };
 
+template < typename T >
+concept three_way_comparable = requires (const T& a, const T& b) {
+  minilib::compare_three_way::operator () (a, b);
+};
+
+template < typename T, typename U >
+concept three_way_comparable_with = requires (const T& a, const U& b) {
+  minilib::compare_three_way::operator () (a, b);
+};
+
 }
 
 #endif
