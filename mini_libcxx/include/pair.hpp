@@ -20,7 +20,7 @@ struct pair {
 
   constexpr pair () = default;
 
-  constexpr pair (const T1& a, const T2& b)
+  constexpr pair (const T1& a, const T2& b) requires (minilib::is_copy_constructible_v < T1 > && minilib::is_copy_constructible_v < T2 >)
     : first (a), second (b) {}
 
   template < typename U1, typename U2 >
@@ -38,20 +38,11 @@ struct pair {
   constexpr pair (pair < U1, U2 >&& other)
     : first (minilib::forward < U1 > (other.first)), second (minilib::forward < U2 > (other.second)) {}
 
-  constexpr pair (const pair&) = default;
-  constexpr pair (pair&&) = default;
-  constexpr pair& operator= (const pair&) = default;
-  constexpr pair& operator= (pair&&) = default;
+  constexpr pair (const pair&) requires (minilib::is_copy_constructible_v < T1 > && minilib::is_copy_constructible_v < T2 >) = default;
+  constexpr pair (pair&&) requires (minilib::is_move_constructible_v < T1 > && minilib::is_move_constructible_v < T2 >) = default;
+  constexpr pair& operator= (const pair&) requires (minilib::is_copy_assignable_v < T1 > && minilib::is_copy_assignable_v < T2 >) = default;
+  constexpr pair& operator= (pair&&) requires (minilib::is_move_assignable_v < T1 > && minilib::is_move_assignable_v < T2 >) = default;
   constexpr ~pair () = default;
-
-  constexpr void swap (pair& other) {
-    auto tmp_first = minilib::move (first);
-    first = minilib::move (other.first);
-    other.first = minilib::move (tmp_first);
-    auto tmp_second = minilib::move (second);
-    second = minilib::move (other.second);
-    other.second = minilib::move (tmp_second);
-  }
 
   friend constexpr bool operator== (const pair&, const pair&) = default;
 
@@ -66,35 +57,6 @@ struct pair {
     return minilib::compare_three_way::operator () (a.second, b.second);
   }
 };
-
-template < typename T1, typename T2 >
-constexpr minilib::pair < std::decay_t < T1 >, std::decay_t < T2 > > make_pair (T1&& a, T2&& b) {
-  return minilib::pair < std::decay_t < T1 >, std::decay_t < T2 > > (minilib::forward < T1 > (a), minilib::forward < T2 > (b));
-}
-
-template < size_t I, typename T1, typename T2 >
-constexpr auto& get (pair < T1, T2 >& p) {
-  if constexpr (I == 0) return p.first;
-  else if constexpr (I == 1) return p.second;
-}
-
-template < size_t I, typename T1, typename T2 >
-constexpr const auto& get (const pair < T1, T2 >& p) {
-  if constexpr (I == 0) return p.first;
-  else if constexpr (I == 1) return p.second;
-}
-
-template < size_t I, typename T1, typename T2 >
-constexpr auto&& get (pair < T1, T2 >&& p) {
-  if constexpr (I == 0) return minilib::move (p.first);
-  else if constexpr (I == 1) return minilib::move (p.second);
-}
-
-template < size_t I, typename T1, typename T2 >
-constexpr const auto&& get (const pair < T1, T2 >&& p) {
-  if constexpr (I == 0) return minilib::move (p.first);
-  else if constexpr (I == 1) return minilib::move (p.second);
-}
 
 }
 

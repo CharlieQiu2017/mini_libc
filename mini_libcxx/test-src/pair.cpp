@@ -19,27 +19,6 @@ constexpr bool test_pair_basic () {
   ASSERT_TRUE (p2.second == 20);
   ASSERT_TRUE (p1 == p2);
 
-  // make_pair
-  auto p3 = minilib::make_pair (10, 20L);
-  ASSERT_TRUE (p3.first == 10);
-  ASSERT_TRUE (p3.second == 20L);
-
-  // Structured binding
-  auto [a, b] = p3;
-  ASSERT_TRUE (a == 10);
-  ASSERT_TRUE (b == 20L);
-
-  // get<I>
-  ASSERT_TRUE (minilib::get < 0 > (p3) == 10);
-  ASSERT_TRUE (minilib::get < 1 > (p3) == 20L);
-
-  // swap
-  minilib::pair < int32_t, int32_t > pa (1, 2);
-  minilib::pair < int32_t, int32_t > pb (3, 4);
-  pa.swap (pb);
-  ASSERT_TRUE (pa.first == 3 && pa.second == 4);
-  ASSERT_TRUE (pb.first == 1 && pb.second == 2);
-
   // comparison
   minilib::pair < int32_t, int32_t > p_less (1, 2);
   minilib::pair < int32_t, int32_t > p_more (1, 3);

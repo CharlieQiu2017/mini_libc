@@ -1474,6 +1474,14 @@ public:
     if (! h.check (runtime->container_id)) std::terminate ();
     return ptr_type::from_counted_ref (h).data_unsafe ()->storage.data ();
   }
+
+  constexpr T * data_unsafe (const handle_type& h) {
+    return ptr_type::from_counted_ref (h).data_unsafe ()->storage.data ();
+  }
+
+  constexpr const T * data_unsafe (const handle_type& h) const {
+    return ptr_type::from_counted_ref (h).data_unsafe ()->storage.data ();
+  }
 };
 
 }

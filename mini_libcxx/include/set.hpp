@@ -13,8 +13,7 @@
 namespace minilib {
 
 template < typename T >
-requires (std::is_object_v < T > && ! std::is_array_v < T > && ! std::is_const_v < T > && ! std::is_volatile_v < T >
-          && minilib::three_way_comparable < T >)
+requires (std::is_object_v < T > && ! std::is_array_v < T > && ! std::is_const_v < T > && ! std::is_volatile_v < T > && minilib::three_way_comparable < T >)
 class set {
 public:
   using value_type = T;

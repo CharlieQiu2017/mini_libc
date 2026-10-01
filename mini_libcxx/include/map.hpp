@@ -15,126 +15,36 @@ namespace minilib {
 
 namespace detail {
 
-struct map_in_place_val_t { explicit map_in_place_val_t () = default; };
-inline constexpr map_in_place_val_t map_in_place_val {};
-
-struct map_in_place_default_val_t { explicit map_in_place_default_val_t () = default; };
-inline constexpr map_in_place_default_val_t map_in_place_default_val {};
-
 template < typename Key, typename Value >
 requires (std::is_object_v < Key > && ! std::is_array_v < Key > && ! std::is_const_v < Key > && ! std::is_volatile_v < Key >
+          && minilib::three_way_comparable < Key >
           && std::is_object_v < Value > && ! std::is_array_v < Value > && ! std::is_const_v < Value > && ! std::is_volatile_v < Value >)
-struct map_pair {
+class map_pair {
+public:
   minilib::pair < minilib::raw_array < Key, 1 >, minilib::raw_array < Value, 1 > > storage;
 
-  constexpr map_pair () requires (minilib::is_truly_default_constructible_v < Key > && minilib::is_truly_default_constructible_v < Value >)
-    : storage () {
-    storage.first.default_construct_at (0);
-    storage.second.default_construct_at (0);
-  }
+  constexpr Key& key () { return *(storage.first.data ()); }
+  constexpr const Key& key () const { return *(storage.first.data ()); }
+  constexpr Value& value () { return *(storage.second.data ()); }
+  constexpr const Value& value () const { return *(storage.second.data ()); }
+  constexpr Key * key_ptr () { return storage.first.data (); }
+  constexpr const Key * key_ptr () const { return storage.first.data (); }
+  constexpr Value * value_ptr () { return storage.second.data (); }
+  constexpr const Value * value_ptr () const { return storage.second.data (); }
 
-  template < typename K, typename... Args >
-  requires (minilib::is_constructible_v < Key, K&& > && minilib::is_constructible_v < Value, Args&&... >)
-  constexpr map_pair (map_in_place_val_t, K&& k, Args&&... args)
-    : storage () {
-    storage.first.construct_at (0, minilib::forward < K > (k));
-    storage.second.construct_at (0, minilib::forward < Args > (args)...);
+  friend constexpr minilib::order_result compare_three_way (const map_pair& a, const map_pair& b) {
+    return minilib::compare_three_way::operator() (*(a.storage.first.data ()), *(b.storage.first.data ()));
   }
-
-  template < typename K >
-  requires (minilib::is_constructible_v < Key, K&& > && minilib::is_truly_default_constructible_v < Value >)
-  constexpr map_pair (map_in_place_default_val_t, K&& k)
-    : storage () {
-    storage.first.construct_at (0, minilib::forward < K > (k));
-    storage.second.default_construct_at (0);
-  }
-
-  template < typename K, typename V >
-  requires (minilib::is_constructible_v < Key, K&& > && minilib::is_constructible_v < Value, V&& >)
-  constexpr map_pair (K&& k, V&& v)
-    : storage () {
-    storage.first.construct_at (0, minilib::forward < K > (k));
-    storage.second.construct_at (0, minilib::forward < V > (v));
-  }
-
-  constexpr map_pair (const minilib::pair < Key, Value >& p) requires (minilib::is_copy_constructible_v < Key > && minilib::is_copy_constructible_v < Value >)
-    : storage () {
-    storage.first.construct_at (0, p.first);
-    storage.second.construct_at (0, p.second);
-  }
-
-  constexpr map_pair (minilib::pair < Key, Value >&& p) requires (minilib::is_move_constructible_v < Key > && minilib::is_move_constructible_v < Value >)
-    : storage () {
-    storage.first.construct_at (0, minilib::move (p.first));
-    storage.second.construct_at (0, minilib::move (p.second));
-  }
-
-  constexpr map_pair (const map_pair& other) requires (minilib::is_copy_constructible_v < Key > && minilib::is_copy_constructible_v < Value >)
-    : storage () {
-    storage.first.construct_at (0, *other.storage.first.data ());
-    storage.second.construct_at (0, *other.storage.second.data ());
-  }
-
-  constexpr map_pair (map_pair&& other) requires (minilib::is_move_constructible_v < Key > && minilib::is_move_constructible_v < Value >)
-    : storage () {
-    storage.first.construct_at (0, minilib::move (*other.storage.first.data ()));
-    storage.second.construct_at (0, minilib::move (*other.storage.second.data ()));
-  }
-
-  constexpr map_pair& operator= (const map_pair& other) requires (minilib::is_copy_constructible_v < Key > && minilib::is_copy_constructible_v < Value >) {
-    if (this == minilib::addressof (other)) return *this;
-    if constexpr (minilib::is_copy_assignable_v < Key >) {
-      *storage.first.data () = *other.storage.first.data ();
-    } else {
-      storage.first.destroy_at (0);
-      storage.first.construct_at (0, *other.storage.first.data ());
-    }
-    if constexpr (minilib::is_copy_assignable_v < Value >) {
-      *storage.second.data () = *other.storage.second.data ();
-    } else {
-      storage.second.destroy_at (0);
-      storage.second.construct_at (0, *other.storage.second.data ());
-    }
-    return *this;
-  }
-
-  constexpr map_pair& operator= (map_pair&& other) requires (minilib::is_move_constructible_v < Key > && minilib::is_move_constructible_v < Value >) {
-    if (this == minilib::addressof (other)) return *this;
-    if constexpr (minilib::is_move_assignable_v < Key >) {
-      *storage.first.data () = minilib::move (*other.storage.first.data ());
-    } else {
-      storage.first.destroy_at (0);
-      storage.first.construct_at (0, minilib::move (*other.storage.first.data ()));
-    }
-    if constexpr (minilib::is_move_assignable_v < Value >) {
-      *storage.second.data () = minilib::move (*other.storage.second.data ());
-    } else {
-      storage.second.destroy_at (0);
-      storage.second.construct_at (0, minilib::move (*other.storage.second.data ()));
-    }
-    return *this;
-  }
-
-  constexpr ~map_pair () {
-    if constexpr (minilib::is_destructible_v < Value >) {
-      storage.second.destroy_at (0);
-    }
-    if constexpr (minilib::is_destructible_v < Key >) {
-      storage.first.destroy_at (0);
-    }
-  }
-
-  constexpr Key& key () { return *storage.first.data (); }
-  constexpr const Key& key () const { return *storage.first.data (); }
-  constexpr Value& value () { return *storage.second.data (); }
-  constexpr const Value& value () const { return *storage.second.data (); }
 };
 
 }
 
+/* We cannot provide non-const access to the key part. However, we do need to destruct keys in the destructor.
+   Therefore, we require Key to be publicly destructible. We don't see how to support private destructor keys.
+ */
 template < typename Key, typename Value >
 requires (std::is_object_v < Key > && ! std::is_array_v < Key > && ! std::is_const_v < Key > && ! std::is_volatile_v < Key >
-          && minilib::three_way_comparable < Key >
+          && minilib::is_destructible_v < Key > && minilib::three_way_comparable < Key >
           && std::is_object_v < Value > && ! std::is_array_v < Value > && ! std::is_const_v < Value > && ! std::is_volatile_v < Value >)
 class map {
 public:
@@ -199,7 +109,7 @@ public:
   }
 
   constexpr const Key * key_ptr (const handle_type& h) const {
-    return minilib::addressof (tree_.data (h)->key ());
+    return tree_.data (h)->key_ptr ();
   }
 
   constexpr Value& value (const handle_type& h) {
@@ -211,13 +121,40 @@ public:
   }
 
   constexpr Value * value_ptr (const handle_type& h) {
-    return minilib::addressof (tree_.data (h)->value ());
+    return tree_.data (h)->value_ptr ();
   }
 
   constexpr const Value * value_ptr (const handle_type& h) const {
-    return minilib::addressof (tree_.data (h)->value ());
+    return tree_.data (h)->value_ptr ();
   }
 
+private:
+  /* Unsafe node accessors */
+  constexpr const Key& key_unsafe (const handle_type& h) const {
+    return tree_.data_unsafe (h)->key ();
+  }
+
+  constexpr const Key * key_ptr_unsafe (const handle_type& h) const {
+    return tree_.data_unsafe (h)->key_ptr ();
+  }
+
+  constexpr Value& value_unsafe (const handle_type& h) {
+    return tree_.data_unsafe (h)->value ();
+  }
+
+  constexpr const Value& value_unsafe (const handle_type& h) const {
+    return tree_.data_unsafe (h)->value ();
+  }
+
+  constexpr Value * value_ptr_unsafe (const handle_type& h) {
+    return tree_.data_unsafe (h)->value_ptr ();
+  }
+
+  constexpr const Value * value_ptr_unsafe (const handle_type& h) const {
+    return tree_.data_unsafe (h)->value_ptr ();
+  }
+
+public:
   /* Navigation helpers */
   constexpr handle_type root () const { return tree_.root (); }
   constexpr handle_type left (const handle_type& h) const { return tree_.left (h); }
@@ -286,7 +223,7 @@ public:
 
   /* Search */
   template < typename K >
-  requires (minilib::three_way_comparable_with < K, Key >)
+  requires (minilib::three_way_comparable_with < const K&, const Key& >)
   constexpr handle_type search (const K& k) const {
     auto curr = tree_.root ();
     while (curr) {
@@ -302,40 +239,44 @@ public:
   }
 
   template < typename K >
-  requires (minilib::three_way_comparable_with < K, Key >)
+  requires (minilib::three_way_comparable_with < const K&, const Key& >)
   constexpr bool contains (const K& k) const {
     return static_cast < bool > (search (k));
   }
 
   /* Value lookup */
   template < typename K >
-  requires (minilib::three_way_comparable_with < K, Key >)
+  requires (minilib::three_way_comparable_with < const K&, const Key& >)
   constexpr Value& at (const K& k) {
     auto h = search (k);
     if (! h) std::terminate ();
-    return value (h);
+    return value_unsafe (h);
   }
 
   template < typename K >
-  requires (minilib::three_way_comparable_with < K, Key >)
+  requires (minilib::three_way_comparable_with < const K&, const Key& >)
   constexpr const Value& at (const K& k) const {
     auto h = search (k);
     if (! h) std::terminate ();
-    return value (h);
+    return value_unsafe (h);
   }
 
   /* Insertion / emplace */
-  template < typename K, typename... Args >
-  requires (minilib::is_constructible_v < Key, K&& > && minilib::is_constructible_v < Value, Args&&... >)
-  constexpr minilib::pair < bool, handle_type > emplace (K&& k, Args&&... args) {
+
+  /* DANGEROUS: This function is deliberately left public to allow cases where the caller manually manages the lifetime of Value. */
+  template < typename K >
+  requires (minilib::three_way_comparable_with < K&&, const Key& > && minilib::is_constructible_v < Key, K&& >)
+  constexpr minilib::pair < bool, handle_type > emplace_null (K&& k) {
     if (empty ()) {
-      handle_type h = tree_.emplace_root (minilib::detail::map_in_place_val, minilib::forward < K > (k), minilib::forward < Args > (args)...);
+      handle_type h = tree_.emplace_root ();
+      auto p = tree_.data (h);
+      minilib::construct_at < Key > (p->key_ptr (), minilib::forward < K&& > (k));
       size_ = 1;
       return minilib::pair < bool, handle_type > (true, h);
     }
     auto curr = tree_.root ();
     while (true) {
-      auto res = minilib::compare_three_way::operator () (k, tree_.data (curr)->key ());
+      auto res = minilib::compare_three_way::operator () (minilib::forward < K&& > (k), minilib::forward < const Key& > (tree_.data (curr)->key ()));
       if (res == 0) {
         return minilib::pair < bool, handle_type > (false, curr);
       }
@@ -344,7 +285,9 @@ public:
         if (nxt) {
           curr = nxt;
         } else {
-          handle_type h = tree_.emplace_left (curr, minilib::detail::map_in_place_val, minilib::forward < K > (k), minilib::forward < Args > (args)...);
+          handle_type h = tree_.emplace_left (curr);
+	  auto p = tree_.data (h);
+	  minilib::construct_at < Key > (p->key_ptr (), minilib::forward < K&& > (k));
           ++size_;
           return minilib::pair < bool, handle_type > (true, h);
         }
@@ -353,91 +296,88 @@ public:
         if (nxt) {
           curr = nxt;
         } else {
-          handle_type h = tree_.emplace_right (curr, minilib::detail::map_in_place_val, minilib::forward < K > (k), minilib::forward < Args > (args)...);
+          handle_type h = tree_.emplace_right (curr);
+	  auto p = tree_.data (h);
+	  minilib::construct_at < Key > (p->key_ptr (), minilib::forward < K&& > (k));
           ++size_;
           return minilib::pair < bool, handle_type > (true, h);
         }
       }
     }
+  }
+
+  template < typename K, typename... Args >
+  requires (minilib::three_way_comparable_with < K&&, const Key& > && minilib::is_constructible_v < Key, K&& > && minilib::is_constructible_v < Value, Args&&... >)
+  constexpr minilib::pair < bool, handle_type > emplace (K&& k, Args&&... args) {
+    auto res = emplace_null (minilib::forward < K&& > (k));
+    if (! res.first) return res;
+    auto p = tree_.data_unsafe (res.second);
+    minilib::construct_at < Value > (p->value_ptr (), minilib::forward < Args&& > (args)...);
+    return res;
   }
 
   template < typename K >
-  requires (minilib::is_constructible_v < Key, K&& > && minilib::is_truly_default_constructible_v < Value >)
+  requires (minilib::three_way_comparable_with < K&&, const Key& > && minilib::is_constructible_v < Key, K&& > && minilib::is_truly_default_constructible_v < Value >)
   constexpr minilib::pair < bool, handle_type > insert_default (K&& k) {
-    if (empty ()) {
-      handle_type h = tree_.emplace_root (minilib::detail::map_in_place_default_val, minilib::forward < K > (k));
-      size_ = 1;
-      return minilib::pair < bool, handle_type > (true, h);
-    }
-    auto curr = tree_.root ();
-    while (true) {
-      auto res = minilib::compare_three_way::operator () (k, tree_.data (curr)->key ());
-      if (res == 0) {
-        return minilib::pair < bool, handle_type > (false, curr);
-      }
-      if (res < 0) {
-        auto nxt = tree_.left (curr);
-        if (nxt) {
-          curr = nxt;
-        } else {
-          handle_type h = tree_.emplace_left (curr, minilib::detail::map_in_place_default_val, minilib::forward < K > (k));
-          ++size_;
-          return minilib::pair < bool, handle_type > (true, h);
-        }
-      } else {
-        auto nxt = tree_.right (curr);
-        if (nxt) {
-          curr = nxt;
-        } else {
-          handle_type h = tree_.emplace_right (curr, minilib::detail::map_in_place_default_val, minilib::forward < K > (k));
-          ++size_;
-          return minilib::pair < bool, handle_type > (true, h);
-        }
-      }
-    }
+    auto res = emplace_null (minilib::forward < K&& > (k));
+    if (! res.first) return res;
+    auto p = tree_.data_unsafe (res.second);
+    minilib::default_construct_at < Value > (p->value_ptr ());
+    return res;
   }
 
   template < typename K, typename V >
-  requires (minilib::is_constructible_v < Key, K&& > && minilib::is_constructible_v < Value, V&& >)
+  requires (minilib::three_way_comparable_with < K&&, const Key& > && minilib::is_constructible_v < Key, K&& > && minilib::is_constructible_v < Value, V&& >)
   constexpr minilib::pair < bool, handle_type > insert (K&& k, V&& v) {
     return emplace (minilib::forward < K > (k), minilib::forward < V > (v));
   }
 
-  constexpr minilib::pair < bool, handle_type > insert (const minilib::pair < Key, Value >& p)
-    requires (minilib::is_copy_constructible_v < Key > && minilib::is_copy_constructible_v < Value >) {
+  constexpr minilib::pair < bool, handle_type > insert (const minilib::pair < Key, Value > & p)
+  requires (minilib::is_copy_constructible_v < Key > && minilib::is_copy_constructible_v < Value >) {
     return emplace (p.first, p.second);
   }
 
-  constexpr minilib::pair < bool, handle_type > insert (minilib::pair < Key, Value >&& p)
-    requires (minilib::is_move_constructible_v < Key > && minilib::is_move_constructible_v < Value >) {
+  constexpr minilib::pair < bool, handle_type > insert (minilib::pair < Key, Value > && p)
+  requires (minilib::is_move_constructible_v < Key > && minilib::is_move_constructible_v < Value >) {
     return emplace (minilib::move (p.first), minilib::move (p.second));
   }
 
   template < typename K, typename M >
-  requires (minilib::is_constructible_v < Key, K&& > && minilib::is_constructible_v < Value, M&& > && requires (Value& v, M&& m) { v = minilib::forward < M > (m); })
+  requires (minilib::three_way_comparable_with < K&&, const Key& > && minilib::is_constructible_v < Key, K&& > && minilib::is_constructible_v < Value, M&& > && requires (Value& v, M&& m) { v = minilib::forward < M > (m); })
   constexpr minilib::pair < bool, handle_type > insert_or_assign (K&& k, M&& m) {
     auto res = emplace (minilib::forward < K > (k), minilib::forward < M > (m));
     if (! res.first) {
-      value (res.second) = minilib::forward < M > (m);
+      value_unsafe (res.second) = minilib::forward < M > (m);
     }
     return res;
   }
 
   template < typename K >
-  requires (minilib::is_constructible_v < Key, K&& > && minilib::is_truly_default_constructible_v < Value >)
+  requires (minilib::three_way_comparable_with < K&&, const Key& > && minilib::is_constructible_v < Key, K&& > && minilib::is_truly_default_constructible_v < Value >)
   constexpr Value& operator[] (K&& k) {
     auto res = insert_default (minilib::forward < K > (k));
-    return value (res.second);
+    return value_unsafe (res.second);
   }
 
   /* Removal */
-  constexpr void remove (const handle_type& h) requires (minilib::is_destructible_v < Key > && minilib::is_destructible_v < Value >) {
+  constexpr void remove (const handle_type& h) requires (minilib::is_destructible_v < Key >) {
+    auto p = tree_.data (h);
+    minilib::destroy_at < Key > (p->key_ptr ());
+    minilib::destroy_at < Value > (p->value_ptr ());
+    tree_.remove (h);
+    --size_;
+  }
+
+  /* For callers who have destructed Value manually */
+  constexpr void inform_destruct (const handle_type& h) requires (minilib::is_destructible_v < Key >) {
+    auto p = tree_.data (h);
+    minilib::destroy_at < Key > (p->key_ptr ());
     tree_.remove (h);
     --size_;
   }
 
   template < typename K >
-  requires (minilib::three_way_comparable_with < K, Key > && minilib::is_destructible_v < Key > && minilib::is_destructible_v < Value >)
+  requires (minilib::three_way_comparable_with < const K&, const Key& > && minilib::is_destructible_v < Key > && minilib::is_destructible_v < Value >)
   constexpr bool remove (const K& k) {
     auto h = search (k);
     if (h) {
