@@ -89,7 +89,7 @@ public:
     if (! curr.is_not_null ()) return curr;
     while (true) {
       auto l = tree_.left_unsafe (curr);
-      if (! l) return curr;
+      if (! l.is_not_null ()) return curr;
       curr = l;
     }
   }
@@ -99,7 +99,7 @@ public:
     if (! curr.is_not_null ()) return curr;
     while (true) {
       auto r = tree_.right_unsafe (curr);
-      if (! r) return curr;
+      if (! r.is_not_null ()) return curr;
       curr = r;
     }
   }
@@ -168,7 +168,7 @@ public:
   template < typename K >
   requires (minilib::three_way_comparable_with < K, T >)
   constexpr bool contains (const K& val) const {
-    return static_cast < bool > (search (val));
+    return search (val).is_not_null ();
   }
 
   /* Insertion */
@@ -250,7 +250,7 @@ public:
   requires (minilib::three_way_comparable_with < K, T > && minilib::is_destructible_v < T >)
   constexpr bool remove (const K& val) {
     auto h = search (val);
-    if (h) {
+    if (h.is_not_null ()) {
       remove (h);
       return true;
     }

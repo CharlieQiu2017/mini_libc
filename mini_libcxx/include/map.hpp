@@ -128,6 +128,7 @@ public:
     return tree_.data (h)->value_ptr ();
   }
 
+private:
   /* Unsafe node accessors */
   constexpr const Key& key_unsafe (const handle_type& h) const {
     return tree_.data_unsafe (h)->key ();
@@ -153,6 +154,7 @@ public:
     return tree_.data_unsafe (h)->value_ptr ();
   }
 
+public:
   /* Navigation helpers */
   constexpr handle_type root () const { return tree_.root (); }
   constexpr handle_type left (const handle_type& h) const { return tree_.left (h); }
@@ -161,20 +163,20 @@ public:
 
   constexpr handle_type min () const {
     auto curr = tree_.root ();
-    if (! curr) return curr;
+    if (! curr.is_not_null ()) return curr;
     while (true) {
       auto l = tree_.left_unsafe (curr);
-      if (! l) return curr;
+      if (! l.is_not_null ()) return curr;
       curr = l;
     }
   }
 
   constexpr handle_type max () const {
     auto curr = tree_.root ();
-    if (! curr) return curr;
+    if (! curr.is_not_null ()) return curr;
     while (true) {
       auto r = tree_.right_unsafe (curr);
-      if (! r) return curr;
+      if (! r.is_not_null ()) return curr;
       curr = r;
     }
   }
@@ -243,7 +245,7 @@ public:
   template < typename K >
   requires (minilib::three_way_comparable_with < const K&, const Key& >)
   constexpr bool contains (const K& k) const {
-    return static_cast < bool > (search (k));
+    return search (k).is_not_null ();
   }
 
   /* Value lookup */
@@ -251,7 +253,7 @@ public:
   requires (minilib::three_way_comparable_with < const K&, const Key& >)
   constexpr Value& at (const K& k) {
     auto h = search (k);
-    if (! h) std::terminate ();
+    if (! h.is_not_null ()) std::terminate ();
     return value_unsafe (h);
   }
 
@@ -259,7 +261,7 @@ public:
   requires (minilib::three_way_comparable_with < const K&, const Key& >)
   constexpr const Value& at (const K& k) const {
     auto h = search (k);
-    if (! h) std::terminate ();
+    if (! h.is_not_null ()) std::terminate ();
     return value_unsafe (h);
   }
 
