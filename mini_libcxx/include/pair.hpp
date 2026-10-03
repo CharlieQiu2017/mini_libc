@@ -46,12 +46,7 @@ struct pair {
 
   friend constexpr bool operator== (const pair&, const pair&) = default;
 
-  template < typename U1 = T1, typename U2 = T2 >
-  requires (requires (const U1& a1, const U1& b1, const U2& a2, const U2& b2) {
-    minilib::compare_three_way::operator () (a1, b1);
-    minilib::compare_three_way::operator () (a2, b2);
-  })
-  friend constexpr minilib::order_result compare_three_way (const pair& a, const pair& b) {
+  friend constexpr minilib::order_result compare_three_way (const pair& a, const pair& b) requires (minilib::three_way_comparable < T1 > && minilib::three_way_comparable < T2 >) {
     auto res = minilib::compare_three_way::operator () (a.first, b.first);
     if (res != 0) return res;
     return minilib::compare_three_way::operator () (a.second, b.second);

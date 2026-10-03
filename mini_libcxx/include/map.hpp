@@ -15,6 +15,12 @@ namespace minilib {
 
 namespace detail {
 
+/* We want to support use-cases where Value has private destructor, and the user manually manages the lifetime of Value.
+   This means map_pair must have trivial destructor (otherwise we cannot destroy a map_pair without calling the destructor of Value).
+   However, for users who do not call inform_destruct(), the container should call the destructors of Key and Value when removing a pair.
+   This is why we need the Destructor parameter on the rbtree class.
+   It allows rbtree to call the destructors of Key and Value when deleting nodes normally, but still let map_pair have a trivial destructor.
+ */
 template < typename Key, typename Value >
 requires (std::is_object_v < Key > && ! std::is_array_v < Key > && ! std::is_const_v < Key > && ! std::is_volatile_v < Key >
           && minilib::three_way_comparable < Key >
@@ -32,10 +38,56 @@ public:
   constexpr Value * value_ptr () { return storage.second.data (); }
   constexpr const Value * value_ptr () const { return storage.second.data (); }
 
+  constexpr map_pair () = default;
+
+  /* If the copy/move operations of Key and Value are trivial, then just inherit the trivial operations */
+  constexpr map_pair (const map_pair& other) requires (minilib::is_trivially_copy_constructible_v < Key > && minilib::is_trivially_copy_constructible_v < Value >) = default;
+  constexpr map_pair (map_pair&& other) requires (minilib::is_trivially_move_constructible_v < Key > && minilib::is_trivially_move_constructible_v < Value >) = default;
+  constexpr map_pair& operator= (const map_pair& other) requires (minilib::is_trivially_copy_assignable_v < Key > && minilib::is_trivially_copy_assignable_v < Value >) = default;
+  constexpr map_pair& operator= (map_pair&& other) requires (minilib::is_trivially_move_assignable_v < Key > && minilib::is_trivially_move_assignable_v < Value >) = default;
+
+  /* Otherwise, the operations are not trivial */
+  constexpr map_pair (const map_pair& other) requires (minilib::is_copy_constructible_v < Key > && minilib::is_copy_constructible_v < Value > && (! minilib::is_trivially_copy_constructible_v < Key > || ! minilib::is_trivially_copy_constructible_v < Value >)) {
+    minilib::construct_at < Key > (key_ptr (), other.key ());
+    minilib::construct_at < Value > (value_ptr (), other.value ());
+  }
+
+  constexpr map_pair (map_pair&& other) requires (minilib::is_move_constructible_v < Key > && minilib::is_move_constructible_v < Value > && (! minilib::is_trivially_move_constructible_v < Key > || ! minilib::is_trivially_move_constructible_v < Value >)) {
+    minilib::construct_at < Key > (key_ptr (), minilib::move (other.key ()));
+    minilib::construct_at < Value > (value_ptr (), minilib::move (other.value ()));
+  }
+
+  constexpr map_pair& operator= (const map_pair& other) requires (minilib::is_copy_assignable_v < Key > && minilib::is_copy_assignable_v < Value > && (! minilib::is_trivially_copy_assignable_v < Key > || ! minilib::is_trivially_copy_assignable_v < Value >)) {
+    key () = other.key ();
+    value () = other.value ();
+    return *this;
+  }
+
+  constexpr map_pair& operator= (map_pair&& other) requires (minilib::is_move_assignable_v < Key > && minilib::is_move_assignable_v < Value > && (! minilib::is_trivially_move_assignable_v < Key > || ! minilib::is_trivially_move_assignable_v < Value >)) {
+    key () = minilib::move (other.key ());
+    value () = minilib::move (other.value ());
+    return *this;
+  }
+
+  constexpr ~map_pair () = default;
+
   friend constexpr minilib::order_result compare_three_way (const map_pair& a, const map_pair& b) {
     return minilib::compare_three_way::operator() (*(a.storage.first.data ()), *(b.storage.first.data ()));
   }
 };
+
+template < typename Key, typename Value >
+requires (std::is_object_v < Key > && ! std::is_array_v < Key > && ! std::is_const_v < Key > && ! std::is_volatile_v < Key >
+          && std::is_object_v < Value > && ! std::is_array_v < Value > && ! std::is_const_v < Value > && ! std::is_volatile_v < Value >)
+constexpr void map_pair_destructor (minilib::detail::map_pair < Key, Value > * p) {
+  if constexpr (minilib::is_destructible_v < Key > && minilib::is_destructible_v < Value >) {
+    minilib::destroy_at < Key > (p->key_ptr ());
+    minilib::destroy_at < Value > (p->value_ptr ());
+    minilib::destroy_at < minilib::detail::map_pair < Key, Value > > (p);
+  } else {
+    std::terminate ();
+  }
+}
 
 }
 
@@ -52,7 +104,7 @@ public:
   using mapped_type = Value;
   using size_type = size_t;
   using node_pair_type = minilib::detail::map_pair < Key, Value >;
-  using tree_type = minilib::rbtree < node_pair_type >;
+  using tree_type = minilib::rbtree < node_pair_type, minilib::detail::map_pair_destructor < Key, Value > >;
   using handle_type = typename tree_type::handle_type;
 
 private:
@@ -220,7 +272,7 @@ public:
     auto p = tree_.parent_unsafe (curr);
     while (p.is_not_null () && same_handle (tree_.left_unsafe (p), curr)) {
       curr = p;
-      p = tree_.parent (p);
+      p = tree_.parent_unsafe (p);
     }
     return p;
   }
@@ -365,9 +417,6 @@ public:
 
   /* Removal */
   constexpr void remove (const handle_type& h) requires (minilib::is_destructible_v < Key >) {
-    auto p = tree_.data (h);
-    minilib::destroy_at < Key > (p->key_ptr ());
-    minilib::destroy_at < Value > (p->value_ptr ());
     tree_.remove (h);
     --size_;
   }
@@ -376,7 +425,8 @@ public:
   constexpr void inform_destruct (const handle_type& h) requires (minilib::is_destructible_v < Key >) {
     auto p = tree_.data (h);
     minilib::destroy_at < Key > (p->key_ptr ());
-    tree_.remove (h);
+    minilib::destroy_at < minilib::detail::map_pair < Key, Value > > (p);
+    tree_.inform_destruct (h);
     --size_;
   }
 
@@ -385,7 +435,8 @@ public:
   constexpr bool remove (const K& k) {
     auto h = search (k);
     if (h.is_not_null ()) {
-      remove (h);
+      tree_.remove (h);
+      --size_;
       return true;
     }
     return false;
