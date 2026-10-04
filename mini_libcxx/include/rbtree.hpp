@@ -466,6 +466,12 @@ private:
     child.data_unsafe ()->flags |= RB_IS_LEFT_CHILD;
   }
 
+  /* If we know that child is the left child of some other node, then we don't even need to set flags */
+  static constexpr void set_left_no_check_no_flag (ptr_type parent, ptr_type child) {
+    parent.data_unsafe ()->left = child;
+    child.data_unsafe ()->parent = parent;
+  }
+
   static constexpr void set_left (ptr_type parent, const std::nullptr_t&) {
     parent.data_unsafe ()->left = nullptr;
   }
@@ -482,6 +488,11 @@ private:
     parent.data_unsafe ()->right = child;
     child.data_unsafe ()->parent = parent;
     child.data_unsafe ()->flags &= ~static_cast < size_t > (RB_IS_LEFT_CHILD);
+  }
+
+  static constexpr void set_right_no_check_no_flag (ptr_type parent, ptr_type child) {
+    parent.data_unsafe ()->right = child;
+    child.data_unsafe ()->parent = parent;
   }
 
   static constexpr void set_right (ptr_type parent, const std::nullptr_t&) {
@@ -548,7 +559,7 @@ private:
             set_left (X, LRR);
             /* set_black (L); */
             /* set_black (X); */
-            set_left_no_check (LR, L);
+            set_left_no_check_no_flag (LR, L);
             set_right_no_check (LR, X);
             /* set_red (LR); */
             return {LR, true};
@@ -587,7 +598,7 @@ private:
             set_left (X, LRR);
             set_red (L);
             /* set_red (X); */
-            set_left_no_check (LR, L);
+            set_left_no_check_no_flag (LR, L);
             set_right_no_check (LR, X);
             set_black (LR);
             return {LR, false};
@@ -643,7 +654,7 @@ private:
           /* set_black (X); */
           /* set_black (R); */
           set_left_no_check (RL, X);
-          set_right_no_check (RL, R);
+          set_right_no_check_no_flag (RL, R);
           /* set_red (RL); */
           return {RL, true};
         }
@@ -683,7 +694,7 @@ private:
           /* set_red (X); */
           set_red (R);
           set_left_no_check (RL, X);
-          set_right_no_check (RL, R);
+          set_right_no_check_no_flag (RL, R);
           set_black (RL);
           return {RL, false};
         }
@@ -728,7 +739,7 @@ private:
               /* set_black (X); */
               /* set_black (R); */
               set_left_no_check (RL, X);
-              set_right_no_check (RL, R);
+              set_right_no_check_no_flag (RL, R);
               /* set_red (RL); */
               return {RL, false};
             }
@@ -755,7 +766,7 @@ private:
               set_left_no_check (RLL, X);
               set_right_no_check (RLL, RL);
               /* set_red (RLL); */
-              set_left_no_check (R, RLL);
+              set_left_no_check_no_flag (R, RLL);
               set_black (R);
               return {R, true};
             }
@@ -792,7 +803,7 @@ private:
             set_black (X);
             /* set_black (R); */
             set_left_no_check (RL, X);
-            set_right_no_check (RL, R);
+            set_right_no_check_no_flag (RL, R);
             /* set_red (RL); */
             return {RL, true};
           }
@@ -837,7 +848,7 @@ private:
               set_left (X, LRR);
               /* set_black (L); */
               /* set_black (X); */
-              set_left_no_check (LR, L);
+              set_left_no_check_no_flag (LR, L);
               set_right_no_check (LR, X);
               /* set_red (LR); */
               return {LR, false};
@@ -865,7 +876,7 @@ private:
               set_left_no_check (LRR, LR);
               set_right_no_check (LRR, X);
               /* set_red (LRR); */
-              set_right_no_check (L, LRR);
+              set_right_no_check_no_flag (L, LRR);
               set_black (L);
               return {L, true};
             }
@@ -901,7 +912,7 @@ private:
             set_left (X, LRR);
             /* set_black (L); */
             /* set_black (X); */
-            set_left_no_check (LR, L);
+            set_left_no_check_no_flag (LR, L);
             set_right_no_check (LR, X);
             /* set_red (LR); */
             return {LR, true};
