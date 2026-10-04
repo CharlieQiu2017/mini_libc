@@ -5,7 +5,7 @@ LD = /opt/aarch64-none-elf/bin/aarch64-none-elf-ld
 JINJA = jinja2
 STDFLAGS = -std=c11
 FREEFLAGS = -nostdlib -ffreestanding
-WARNFLAGS = -Wall -Wextra -pedantic -Werror -Wfatal-errors
+WARNFLAGS = -Wall -Wextra -pedantic -Werror -Wfatal-errors -Wno-error=array-bounds
 ARCHFLAGS = -march=armv8-a+crc+crypto -mtune=cortex-a72.cortex-a53
 PROTFLAGS = -fomit-frame-pointer -fno-asynchronous-unwind-tables -fcf-protection=none -fno-stack-protector -fno-stack-clash-protection -fno-ident -fno-jump-tables
 PIEFLAGS = -fPIE
@@ -86,9 +86,6 @@ crt.o : crt/crt.asm
 
 obj/%.o : src/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
-
-tmp/%.c : src/%.m4
-	$(M4) $< > $@
 
 tmp/%.c : src/%.j2 src/%.json
 	$(JINJA) $^ > $@

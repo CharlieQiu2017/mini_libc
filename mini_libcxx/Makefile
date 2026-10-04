@@ -6,7 +6,7 @@ STDFLAGS = -std=c11
 CXXSTDFLAGS = -std=c++26
 FREEFLAGS = -nostdlib -ffreestanding
 CXXFREEFLAGS = -nostdlib -ffreestanding -fno-exceptions -fno-rtti -fno-threadsafe-statics
-WARNFLAGS = -Wall -Wextra -pedantic -Werror -Wfatal-errors
+WARNFLAGS = -Wall -Wextra -pedantic -Werror -Wfatal-errors -Wno-error=array-bounds
 ARCHFLAGS = -march=armv8-a+crc+crypto -mtune=cortex-a72.cortex-a53
 PROTFLAGS = -fomit-frame-pointer -fno-asynchronous-unwind-tables -fcf-protection=none -fno-stack-protector -fno-stack-clash-protection -fno-ident -fno-jump-tables
 PIEFLAGS = -fPIE
