@@ -431,6 +431,10 @@ private:
     return static_cast < bool > (p) && ((p.data_unsafe ()->flags & RB_IS_RED) != 0);
   }
 
+  static constexpr bool is_red_no_check (ptr_type p) {
+    return (p.data_unsafe ()->flags & RB_IS_RED) != 0;
+  }
+
   static constexpr bool is_black (ptr_type p) {
     return !static_cast < bool > (p) || ((p.data_unsafe ()->flags & RB_IS_RED) == 0);
   }
@@ -470,6 +474,14 @@ private:
   static constexpr void set_left_no_check_no_flag (ptr_type parent, ptr_type child) {
     parent.data_unsafe ()->left = child;
     child.data_unsafe ()->parent = parent;
+  }
+
+  /* Use this when we know child is previously a left child, but do not know whether it is nullptr */
+  static constexpr void set_left_no_flag (ptr_type parent, ptr_type child) {
+    parent.data_unsafe ()->left = child;
+    if (child) {
+      child.data_unsafe ()->parent = parent;
+    }
   }
 
   static constexpr void set_left (ptr_type parent, const std::nullptr_t&) {
@@ -533,7 +545,7 @@ private:
 
   /* As an optimization, we try to avoid unnecessary recoloring, and avoid unnecessary checks in set_left/set_right */
   static constexpr minilib::pair < ptr_type, bool > do_rb_insert_rebalance_left (ptr_type X, bool is_bh_equal) {
-    bool c_red = is_red (X);
+    bool c_red = is_red_no_check (X);
     ptr_type L = X.data_unsafe ()->left;
     if (!c_red) {
       /* X is black */
@@ -618,7 +630,7 @@ private:
   }
 
   static constexpr minilib::pair < ptr_type, bool > do_rb_insert_rebalance_right (ptr_type X, bool is_bh_equal) {
-    bool c_red = is_red (X);
+    bool c_red = is_red_no_check (X);
     ptr_type R = X.data_unsafe ()->right;
     if (!c_red) {
       /* X is black */
@@ -703,7 +715,7 @@ private:
   }
 
   static constexpr minilib::pair < ptr_type, bool > do_rb_delete_rebalance_left (ptr_type X, bool is_bh_equal) {
-    bool c_red = is_red (X);
+    bool c_red = is_red_no_check (X);
     ptr_type L = X.data_unsafe ()->left;
     ptr_type R = X.data_unsafe ()->right;
     if (!c_red) {
@@ -813,7 +825,7 @@ private:
   }
 
   static constexpr minilib::pair < ptr_type, bool > do_rb_delete_rebalance_right (ptr_type X, bool is_bh_equal) {
-    bool c_red = is_red (X);
+    bool c_red = is_red_no_check (X);
     ptr_type L = X.data_unsafe ()->left;
     ptr_type R = X.data_unsafe ()->right;
     if (!c_red) {
@@ -925,10 +937,10 @@ private:
   constexpr void insert_rebalance (ptr_type X, bool is_left) {
     ptr_type curr = X;
     bool is_bh_equal = true;
-    while (curr) {
+    while (true) {
       ptr_type parent = curr.data_unsafe ()->parent;
       bool was_left = (curr.data_unsafe ()->flags & RB_IS_LEFT_CHILD) != 0;
-      bool was_red = curr.data_unsafe ()->flags & RB_IS_RED;
+      bool was_red = is_red_no_check (curr);
       minilib::pair < ptr_type, bool > res;
       if (is_left) {
         res = do_rb_insert_rebalance_left (curr, is_bh_equal);
@@ -940,9 +952,10 @@ private:
         else set_right_no_check (parent, res.first);
       } else {
         set_root_no_check (res.first);
+	return;
       }
       /* If neither color nor black-height of X changed after rebalancing, exit early */
-      if (res.second && was_red == static_cast < bool > (res.first.data_unsafe ()->flags & RB_IS_RED)) return;
+      if (res.second && was_red == is_red_no_check (res.first)) return;
       curr = parent;
       is_left = was_left;
       is_bh_equal = res.second;
@@ -951,16 +964,19 @@ private:
 
   constexpr void remove_node (ptr_type X) {
     ptr_type parent_of_X = X.data_unsafe ()->parent;
+    ptr_type left_of_X = X.data_unsafe ()->left;
+    ptr_type right_of_X = X.data_unsafe ()->right;
     bool was_X_left = (X.data_unsafe ()->flags & RB_IS_LEFT_CHILD) != 0;
+    bool was_X_red = is_red_no_check (X);
+    minilib::destroy_at < node_type > (X.data_unsafe ());
+    ptr_type::deallocate (X);
 
     ptr_type new_sub_root;
     bool final_b;
 
-    if (!X.data_unsafe ()->right) {
-      new_sub_root = X.data_unsafe ()->left;
-      final_b = is_red (X);
-      minilib::destroy_at < node_type > (X.data_unsafe ());
-      ptr_type::deallocate (X);
+    if (! right_of_X) {
+      new_sub_root = left_of_X;
+      final_b = was_X_red;
       if (parent_of_X) {
 	if (was_X_left) set_left (parent_of_X, new_sub_root);
 	else set_right (parent_of_X, new_sub_root);
@@ -969,13 +985,12 @@ private:
 	return;
       }
     } else {
-      ptr_type R = X.data_unsafe ()->right;
-      if (!R.data_unsafe ()->left) {
-        bool b = is_red (R);
-        set_left (R, X.data_unsafe ()->left);
-        set_color (R, is_red (X));
-        minilib::destroy_at < node_type > (X.data_unsafe ());
-        ptr_type::deallocate (X);
+      ptr_type R = right_of_X;
+      if (! R.data_unsafe ()->left) {
+	/* R will be the node that replaces X */
+        bool b = is_red_no_check (R);
+        set_left_no_flag (R, left_of_X);
+        set_color (R, was_X_red);
         auto res = do_rb_delete_rebalance_right (R, b);
         new_sub_root = res.first;
         final_b = res.second;
@@ -984,48 +999,58 @@ private:
           else set_right_no_check (parent_of_X, new_sub_root);
         } else {
           set_root_no_check (new_sub_root);
+	  return;
         }
+	if (res.second && was_X_red == is_red_no_check (res.first)) return;
       } else {
-        ptr_type curr = R;
+        ptr_type curr_p = R, curr = R.data_unsafe ()->left;
         while (curr.data_unsafe ()->left) {
+	  curr_p = curr;
           curr = curr.data_unsafe ()->left;
         }
-        ptr_type Y = curr;
-        ptr_type P_k = Y.data_unsafe ()->parent;
-        bool b = is_red (Y);
-        set_left (P_k, Y.data_unsafe ()->right);
+        ptr_type Y = curr; /* Y will be the node that replaces X */
+        bool b = is_red_no_check (Y);
+        set_left (curr_p, Y.data_unsafe ()->right);
+        set_left_no_flag (Y, left_of_X);
+	set_color (Y, was_X_red);
 
-        ptr_type p = P_k;
-        ptr_type new_R;
-        bool b_0;
+        ptr_type p = curr_p;
         while (true) {
           bool is_at_R = same_ptr (p, R);
-	  bool was_red = p.data_unsafe ()->flags & RB_IS_RED;
+	  bool was_red = is_red_no_check (p);
           ptr_type parent_of_p = p.data_unsafe ()->parent;
           auto res = do_rb_delete_rebalance_left (p, b);
           if (!is_at_R) {
             set_left_no_check (parent_of_p, res.first);
+	    if (res.second && was_red == is_red_no_check (res.first)) {
+	      set_right_no_check_no_flag (Y, R);
+	      if (parent_of_X) {
+		if (was_X_left) set_left_no_check (parent_of_X, Y);
+		else set_right_no_check (parent_of_X, Y);
+	      } else {
+		set_root_no_check (Y);
+	      }
+	      return;
+	    }
             p = parent_of_p;
             b = res.second;
-	    if (res.second && was_red == static_cast < bool > (res.first.data_unsafe ()->flags & RB_IS_RED)) {
-	      new_R = R;
-	      b_0 = true;
-	      break;
-	    }
           } else {
-            new_R = res.first;
-            b_0 = res.second;
+	    set_right_no_check (Y, res.first);
+	    if (res.second && was_red == is_red_no_check (res.first)) {
+	      if (parent_of_X) {
+		if (was_X_left) set_left_no_check (parent_of_X, Y);
+		else set_right_no_check (parent_of_X, Y);
+	      } else {
+		set_root_no_check (Y);
+	      }
+	      return;
+	    }
+            b = res.second;
             break;
           }
         }
 
-        set_left (Y, X.data_unsafe ()->left);
-        set_right_no_check (Y, new_R);
-        set_color (Y, is_red (X));
-        minilib::destroy_at < node_type > (X.data_unsafe ());
-        ptr_type::deallocate (X);
-
-        auto res = do_rb_delete_rebalance_right (Y, b_0);
+        auto res = do_rb_delete_rebalance_right (Y, b);
         new_sub_root = res.first;
         final_b = res.second;
         if (parent_of_X) {
@@ -1033,18 +1058,20 @@ private:
           else set_right_no_check (parent_of_X, new_sub_root);
         } else {
           set_root_no_check (new_sub_root);
+	  return;
         }
+	if (res.second && was_X_red == is_red_no_check (res.first)) return;
       }
     }
 
-    ptr_type curr = parent_of_X;
+    ptr_type curr = parent_of_X; /* If we reach this point, then curr != nullptr */
     bool is_left = was_X_left;
     bool is_bh_equal = final_b;
 
-    while (curr) {
+    while (true) {
       ptr_type parent = curr.data_unsafe ()->parent;
       bool was_left = (curr.data_unsafe ()->flags & RB_IS_LEFT_CHILD) != 0;
-      bool was_red = curr.data_unsafe ()->flags & RB_IS_RED;
+      bool was_red = is_red_no_check (curr);
       minilib::pair < ptr_type, bool > res;
       if (is_left) {
         res = do_rb_delete_rebalance_left (curr, is_bh_equal);
@@ -1056,8 +1083,9 @@ private:
         else set_right_no_check (parent, res.first);
       } else {
         set_root_no_check (res.first);
+	return;
       }
-      if (res.second && was_red == static_cast < bool > (res.first.data_unsafe ()->flags & RB_IS_RED)) return;
+      if (res.second && was_red == is_red_no_check (res.first)) return;
       curr = parent;
       is_left = was_left;
       is_bh_equal = res.second;
@@ -1118,7 +1146,7 @@ private:
         ptr_type new_dst = allocate_node ();
         new_dst.data_unsafe ()->flags = l.data_unsafe ()->flags;
         minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(l.data_unsafe ()->storage.data ()));
-        set_left (dst, new_dst);
+        set_left_no_check_no_flag (dst, new_dst);
         src = l;
         dst = new_dst;
         continue;
@@ -1128,7 +1156,7 @@ private:
         ptr_type new_dst = allocate_node ();
         new_dst.data_unsafe ()->flags = r.data_unsafe ()->flags;
         minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(r.data_unsafe ()->storage.data ()));
-        set_right (dst, new_dst);
+        set_right_no_check_no_flag (dst, new_dst);
         src = r;
         dst = new_dst;
         continue;
@@ -1144,7 +1172,7 @@ private:
           ptr_type new_dst = allocate_node ();
           new_dst.data_unsafe ()->flags = p_src.data_unsafe ()->right.data_unsafe ()->flags;
           minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(p_src.data_unsafe ()->right.data_unsafe ()->storage.data ()));
-          set_right (p_dst, new_dst);
+          set_right_no_check_no_flag (p_dst, new_dst);
           src = p_src.data_unsafe ()->right;
           dst = new_dst;
           found_next = true;
@@ -1173,7 +1201,7 @@ private:
     ptr_type X = ptr_type::from_counted_ref (h);
     if (X.data_unsafe ()->left) std::terminate ();
     auto L = allocate_node ();
-    set_left (X, L);
+    set_left_no_check (X, L);
     set_red (L);
     insert_rebalance (X, true);
     return L;
@@ -1185,7 +1213,7 @@ private:
     ptr_type X = ptr_type::from_counted_ref (h);
     if (X.data_unsafe ()->right) std::terminate ();
     auto R = allocate_node ();
-    set_right (X, R);
+    set_right_no_check (X, R);
     set_red (R);
     insert_rebalance (X, false);
     return R;
@@ -1358,13 +1386,13 @@ public:
 	  if (p) {
 	    detach (leaf);
 	    assign_node_data (l, leaf);
-	    set_left (dst, leaf);
+	    set_left_no_check_no_flag (dst, leaf);
 	    src = l;
 	    dst = leaf;
 	    leaf = find_leaf (p);
 	  } else {
 	    assign_node_data (l, leaf);
-	    set_left (dst, leaf);
+	    set_left_no_check_no_flag (dst, leaf);
 	    src = l;
 	    dst = leaf;
 	    leaf = nullptr;
@@ -1373,7 +1401,7 @@ public:
 	  ptr_type new_dst = allocate_node ();
 	  new_dst.data_unsafe ()->flags = l.data_unsafe ()->flags;
 	  minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(l.data_unsafe ()->storage.data ()));
-	  set_left (dst, new_dst);
+	  set_left_no_check_no_flag (dst, new_dst);
 	  src = l;
 	  dst = new_dst;
 	}
@@ -1386,13 +1414,13 @@ public:
 	  if (p) {
 	    detach (leaf);
 	    assign_node_data (r, leaf);
-	    set_right (dst, leaf);
+	    set_right_no_check_no_flag (dst, leaf);
 	    src = r;
 	    dst = leaf;
 	    leaf = find_leaf (p);
 	  } else {
 	    assign_node_data (r, leaf);
-	    set_right (dst, leaf);
+	    set_right_no_check_no_flag (dst, leaf);
 	    src = r;
 	    dst = leaf;
 	    leaf = nullptr;
@@ -1401,7 +1429,7 @@ public:
 	  ptr_type new_dst = allocate_node ();
 	  new_dst.data_unsafe ()->flags = r.data_unsafe ()->flags;
 	  minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(r.data_unsafe ()->storage.data ()));
-	  set_right (dst, new_dst);
+	  set_right_no_check_no_flag (dst, new_dst);
 	  src = r;
 	  dst = new_dst;
 	}
@@ -1420,13 +1448,13 @@ public:
 	    if (p) {
 	      detach (leaf);
 	      assign_node_data (p_src.data_unsafe ()->right, leaf);
-	      set_right (p_dst, leaf);
+	      set_right_no_check_no_flag (p_dst, leaf);
 	      src = p_src.data_unsafe ()->right;
 	      dst = leaf;
 	      leaf = find_leaf (p);
 	    } else {
 	      assign_node_data (p_src.data_unsafe ()->right, leaf);
-	      set_right (p_dst, leaf);
+	      set_right_no_check_no_flag (p_dst, leaf);
 	      src = p_src.data_unsafe ()->right;
 	      dst = leaf;
 	      leaf = nullptr;
@@ -1435,7 +1463,7 @@ public:
 	    ptr_type new_dst = allocate_node ();
 	    new_dst.data_unsafe ()->flags = p_src.data_unsafe ()->right.data_unsafe ()->flags;
 	    minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(p_src.data_unsafe ()->right.data_unsafe ()->storage.data ()));
-	    set_right (p_dst, new_dst);
+	    set_right_no_check_no_flag (p_dst, new_dst);
 	    src = p_src.data_unsafe ()->right;
 	    dst = new_dst;
 	  }
