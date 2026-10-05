@@ -224,7 +224,7 @@ public:
       if (ptr_real != 0) {
 	size_t * ctr_ptr = reinterpret_cast < size_t * > (ptr_real + 8);
 	(*ctr_ptr)--;
-	if (*ctr_ptr == (1ull << 62)) free (reinterpret_cast < void * > (ptr_real));
+	if (*ctr_ptr == ((1ull << 62) | (1ull << 63))) free (reinterpret_cast < void * > (ptr_real));
 	ptr_real = 0;
       }
     }
