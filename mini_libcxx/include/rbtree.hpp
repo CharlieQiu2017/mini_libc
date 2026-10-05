@@ -439,10 +439,6 @@ private:
     return !static_cast < bool > (p) || ((p.data_unsafe ()->flags & RB_IS_RED) == 0);
   }
 
-  static constexpr bool same_ptr (ptr_type a, ptr_type b) {
-    return minilib::compare_three_way::operator () (a, b) == 0;
-  }
-
   static constexpr void set_red (ptr_type p) {
     p.data_unsafe ()->flags |= RB_IS_RED;
   }
@@ -452,8 +448,7 @@ private:
   }
 
   static constexpr void set_color (ptr_type p, bool red) {
-    if (red) set_red (p);
-    else set_black (p);
+    p.data_unsafe ()->flags = (p.data_unsafe ()->flags & ~static_cast < size_t > (RB_IS_RED)) | (static_cast < size_t > (red) << 1);
   }
 
   static constexpr void set_left (ptr_type parent, ptr_type child) {
@@ -474,14 +469,6 @@ private:
   static constexpr void set_left_no_check_no_flag (ptr_type parent, ptr_type child) {
     parent.data_unsafe ()->left = child;
     child.data_unsafe ()->parent = parent;
-  }
-
-  /* Use this when we know child is previously a left child, but do not know whether it is nullptr */
-  static constexpr void set_left_no_flag (ptr_type parent, ptr_type child) {
-    parent.data_unsafe ()->left = child;
-    if (child) {
-      child.data_unsafe ()->parent = parent;
-    }
   }
 
   static constexpr void set_left (ptr_type parent, const std::nullptr_t&) {
@@ -532,27 +519,24 @@ private:
     runtime->root = nullptr;
   }
 
-  constexpr ptr_type allocate_node () {
+  constexpr ptr_type allocate_node (size_t flags) {
     auto runtime = get_runtime ();
     auto p = ptr_type::allocate (runtime->container_id, get_local_counter ());
     minilib::construct_at < node_type > (p.data_unsafe ());
-    p.data_unsafe ()->left = nullptr;
-    p.data_unsafe ()->right = nullptr;
-    p.data_unsafe ()->parent = nullptr;
-    p.data_unsafe ()->flags = 0;
+    p.data_unsafe ()->flags = flags;
     return p;
   }
 
   /* As an optimization, we try to avoid unnecessary recoloring, and avoid unnecessary checks in set_left/set_right */
   static constexpr minilib::pair < ptr_type, bool > do_rb_insert_rebalance_left (ptr_type X, bool is_bh_equal) {
     bool c_red = is_red_no_check (X);
-    ptr_type L = X.data_unsafe ()->left;
     if (!c_red) {
       /* X is black */
       if (is_bh_equal) {
         /* set_black (X); */
         return {X, true};
       } else {
+	ptr_type L = X.data_unsafe ()->left;
 	/* L is black */
         ptr_type LL = L.data_unsafe ()->left;
         ptr_type LR = L.data_unsafe ()->right;
@@ -592,6 +576,7 @@ private:
         set_black (X);
         return {X, false};
       } else {
+	ptr_type L = X.data_unsafe ()->left;
 	/* L is black */
         ptr_type LL = L.data_unsafe ()->left;
         ptr_type LR = L.data_unsafe ()->right;
@@ -631,13 +616,13 @@ private:
 
   static constexpr minilib::pair < ptr_type, bool > do_rb_insert_rebalance_right (ptr_type X, bool is_bh_equal) {
     bool c_red = is_red_no_check (X);
-    ptr_type R = X.data_unsafe ()->right;
     if (!c_red) {
       /* X is black */
       if (is_bh_equal) {
         /* set_black (X); */
         return {X, true};
       } else {
+	ptr_type R = X.data_unsafe ()->right;
 	/* R is black */
         ptr_type RL = R.data_unsafe ()->left;
         ptr_type RR = R.data_unsafe ()->right;
@@ -677,6 +662,7 @@ private:
         set_black (X);
         return {X, false};
       } else {
+	ptr_type R = X.data_unsafe ()->right;
 	/* R is black */
         ptr_type RL = R.data_unsafe ()->left;
         ptr_type RR = R.data_unsafe ()->right;
@@ -715,221 +701,178 @@ private:
   }
 
   static constexpr minilib::pair < ptr_type, bool > do_rb_delete_rebalance_left (ptr_type X, bool is_bh_equal) {
-    bool c_red = is_red_no_check (X);
+    if (is_bh_equal) return {X, true};
     ptr_type L = X.data_unsafe ()->left;
-    ptr_type R = X.data_unsafe ()->right;
+    if (is_red (L)) { set_black (L); return {X, true}; }
+
+    bool c_red = is_red_no_check (X);
     if (!c_red) {
-      /* X is black */
-      if (is_bh_equal) {
-        /* set_black (X); */
-        return {X, true};
+      /* X is black, L is black */
+      /* If L has reduced black-height, then R cannot be nullptr */
+      ptr_type R = X.data_unsafe ()->right;
+      bool r_red = is_red_no_check (R);
+      ptr_type RL = R.data_unsafe ()->left;
+      if (!r_red) {
+	/* R is black */
+	if (is_black (RL)) {
+	  /* RL is black or nil */
+	  set_right (X, RL);
+	  set_red (X);
+	  /* set_black (R); */
+	  set_left_no_check (R, X);
+	  return {R, false};
+	} else {
+	  /* RL is red */
+	  ptr_type RLL = RL.data_unsafe ()->left;
+	  ptr_type RLR = RL.data_unsafe ()->right;
+	  set_right (X, RLL);
+	  set_left (R, RLR);
+	  /* set_black (X); */
+	  /* set_black (R); */
+	  set_left_no_check (RL, X);
+	  set_right_no_check_no_flag (RL, R);
+	  /* set_red (RL); */
+	  return {RL, false};
+	}
       } else {
-        if (is_red (L)) {
-	  /* L is red */
-          set_black (L);
-          /* set_black (X); */
-          return {X, true};
-        } else {
-	  /* L is black */
-          bool r_red = is_red (R);
-          ptr_type RL = R.data_unsafe ()->left;
-          if (!r_red) {
-	    /* R is black */
-            if (is_black (RL)) {
-	      /* RL is black or nil */
-              set_right (X, RL);
-              set_red (X);
-              /* set_black (R); */
-              set_left_no_check (R, X);
-              return {R, false};
-            } else {
-	      /* RL is red */
-              ptr_type RLL = RL.data_unsafe ()->left;
-              ptr_type RLR = RL.data_unsafe ()->right;
-              set_right (X, RLL);
-              set_left (R, RLR);
-              /* set_black (X); */
-              /* set_black (R); */
-              set_left_no_check (RL, X);
-              set_right_no_check_no_flag (RL, R);
-              /* set_red (RL); */
-              return {RL, false};
-            }
-          } else {
-	    /* R is red, hence RL is black */
-            ptr_type RLL = RL.data_unsafe ()->left;
-            ptr_type RLR = RL.data_unsafe ()->right;
-            if (is_black (RLL)) {
-	      /* RLL is black */
-              set_right (X, RLL);
-              set_red (X);
-              /* set_black (RL); */
-              set_left_no_check (RL, X);
-              /* set_red (R); */
-              return {R, false};
-            } else {
-	      /* RLL is red */
-              ptr_type RLLL = RLL.data_unsafe ()->left;
-              ptr_type RLLR = RLL.data_unsafe ()->right;
-              set_right (X, RLLL);
-              set_left (RL, RLLR);
-              /* set_black (X); */
-              /* set_black (RL); */
-              set_left_no_check (RLL, X);
-              set_right_no_check (RLL, RL);
-              /* set_red (RLL); */
-              set_left_no_check_no_flag (R, RLL);
-              set_black (R);
-              return {R, true};
-            }
-          }
-        }
+	/* R is red, hence RL is black */
+	ptr_type RLL = RL.data_unsafe ()->left;
+	ptr_type RLR = RL.data_unsafe ()->right;
+	if (is_black (RLL)) {
+	  /* RLL is black */
+	  set_right (X, RLL);
+	  set_red (X);
+	  /* set_black (RL); */
+	  set_left_no_check (RL, X);
+	  /* set_red (R); */
+	  return {R, false};
+	} else {
+	  /* RLL is red */
+	  ptr_type RLLL = RLL.data_unsafe ()->left;
+	  ptr_type RLLR = RLL.data_unsafe ()->right;
+	  set_right (X, RLLL);
+	  set_left (RL, RLLR);
+	  /* set_black (X); */
+	  /* set_black (RL); */
+	  set_left_no_check (RLL, X);
+	  set_right_no_check (RLL, RL);
+	  /* set_red (RLL); */
+	  set_left_no_check_no_flag (R, RLL);
+	  set_black (R);
+	  return {R, true};
+	}
       }
     } else {
-      /* X is red, hence R is black */
-      if (is_bh_equal) {
-        /* set_red (X); */
-        return {X, true};
+      /* X is red, L is black, hence R is black */
+      ptr_type R = X.data_unsafe ()->right;
+      ptr_type RL = R.data_unsafe ()->left;
+      if (is_black (RL)) {
+	/* RL is black */
+	set_right (X, RL);
+	/* set_red (X); */
+	/* set_black (R); */
+	set_left_no_check (R, X);
+	return {R, true};
       } else {
-        if (is_red (L)) {
-	  /* L is red */
-          set_black (L);
-          /* set_red (X); */
-          return {X, true};
-        } else {
-	  /* L is black */
-          ptr_type RL = R.data_unsafe ()->left;
-          if (is_black (RL)) {
-	    /* RL is black */
-            set_right (X, RL);
-            /* set_red (X); */
-            /* set_black (R); */
-            set_left_no_check (R, X);
-            return {R, true};
-          } else {
-	    /* RL is red */
-            ptr_type RLL = RL.data_unsafe ()->left;
-            ptr_type RLR = RL.data_unsafe ()->right;
-            set_right (X, RLL);
-            set_left (R, RLR);
-            set_black (X);
-            /* set_black (R); */
-            set_left_no_check (RL, X);
-            set_right_no_check_no_flag (RL, R);
-            /* set_red (RL); */
-            return {RL, true};
-          }
-        }
+	/* RL is red */
+	ptr_type RLL = RL.data_unsafe ()->left;
+	ptr_type RLR = RL.data_unsafe ()->right;
+	set_right (X, RLL);
+	set_left (R, RLR);
+	set_black (X);
+	/* set_black (R); */
+	set_left_no_check (RL, X);
+	set_right_no_check_no_flag (RL, R);
+	/* set_red (RL); */
+	return {RL, true};
       }
     }
   }
 
   static constexpr minilib::pair < ptr_type, bool > do_rb_delete_rebalance_right (ptr_type X, bool is_bh_equal) {
-    bool c_red = is_red_no_check (X);
-    ptr_type L = X.data_unsafe ()->left;
+    if (is_bh_equal) return {X, true};
     ptr_type R = X.data_unsafe ()->right;
+    if (is_red (R)) { set_black (R); return {X, true}; }
+
+    bool c_red = is_red_no_check (X);
     if (!c_red) {
-      /* X is black */
-      if (is_bh_equal) {
-        /* set_black (X); */
-        return {X, true};
+      /* X is black, R is black */
+      ptr_type L = X.data_unsafe ()->left;
+      bool l_red = is_red_no_check (L);
+      ptr_type LR = L.data_unsafe ()->right;
+      if (!l_red) {
+	/* L is black */
+	if (is_black (LR)) {
+	  /* LR is black */
+	  set_left (X, LR);
+	  set_red (X);
+	  /* set_black (L); */
+	  set_right_no_check (L, X);
+	  return {L, false};
+	} else {
+	  /* LR is red */
+	  ptr_type LRL = LR.data_unsafe ()->left;
+	  ptr_type LRR = LR.data_unsafe ()->right;
+	  set_right (L, LRL);
+	  set_left (X, LRR);
+	  /* set_black (L); */
+	  /* set_black (X); */
+	  set_left_no_check_no_flag (LR, L);
+	  set_right_no_check (LR, X);
+	  /* set_red (LR); */
+	  return {LR, false};
+	}
       } else {
-        if (is_red (R)) {
-	  /* R is red */
-          set_black (R);
-          /* set_black (X); */
-          return {X, true};
-        } else {
-	  /* R is black */
-          bool l_red = is_red (L);
-          ptr_type LR = L.data_unsafe ()->right;
-          if (!l_red) {
-	    /* L is black */
-            if (is_black (LR)) {
-	      /* LR is black */
-              set_left (X, LR);
-              set_red (X);
-              /* set_black (L); */
-              set_right_no_check (L, X);
-              return {L, false};
-            } else {
-	      /* LR is red */
-              ptr_type LRL = LR.data_unsafe ()->left;
-              ptr_type LRR = LR.data_unsafe ()->right;
-              set_right (L, LRL);
-              set_left (X, LRR);
-              /* set_black (L); */
-              /* set_black (X); */
-              set_left_no_check_no_flag (LR, L);
-              set_right_no_check (LR, X);
-              /* set_red (LR); */
-              return {LR, false};
-            }
-          } else {
-	    /* L is red, hence LR is black */
-            ptr_type LRL = LR.data_unsafe ()->left;
-            ptr_type LRR = LR.data_unsafe ()->right;
-            if (is_black (LRR)) {
-	      /* LRR is black */
-              set_left (X, LRR);
-              set_red (X);
-              /* set_black (LR); */
-              set_right_no_check (LR, X);
-              /* set_red (L); */
-              return {L, false};
-            } else {
-	      /* LRR is red */
-              ptr_type LRRL = LRR.data_unsafe ()->left;
-              ptr_type LRRR = LRR.data_unsafe ()->right;
-              set_right (LR, LRRL);
-              set_left (X, LRRR);
-              /* set_black (LR); */
-              /* set_black (X); */
-              set_left_no_check (LRR, LR);
-              set_right_no_check (LRR, X);
-              /* set_red (LRR); */
-              set_right_no_check_no_flag (L, LRR);
-              set_black (L);
-              return {L, true};
-            }
-          }
-        }
+	/* L is red, hence LR is black */
+	ptr_type LRL = LR.data_unsafe ()->left;
+	ptr_type LRR = LR.data_unsafe ()->right;
+	if (is_black (LRR)) {
+	  /* LRR is black */
+	  set_left (X, LRR);
+	  set_red (X);
+	  /* set_black (LR); */
+	  set_right_no_check (LR, X);
+	  /* set_red (L); */
+	  return {L, false};
+	} else {
+	  /* LRR is red */
+	  ptr_type LRRL = LRR.data_unsafe ()->left;
+	  ptr_type LRRR = LRR.data_unsafe ()->right;
+	  set_right (LR, LRRL);
+	  set_left (X, LRRR);
+	  /* set_black (LR); */
+	  /* set_black (X); */
+	  set_left_no_check (LRR, LR);
+	  set_right_no_check (LRR, X);
+	  /* set_red (LRR); */
+	  set_right_no_check_no_flag (L, LRR);
+	  set_black (L);
+	  return {L, true};
+	}
       }
     } else {
-      /* X is red, hence L is black */
-      if (is_bh_equal) {
-        /* set_red (X); */
-        return {X, true};
+      /* X is red, R is black, hence L is black */
+      ptr_type L = X.data_unsafe ()->left;
+      ptr_type LR = L.data_unsafe ()->right;
+      if (is_black (LR)) {
+	/* LR is black */
+	set_left (X, LR);
+	/* set_red (X); */
+	/* set_black (L); */
+	set_right_no_check (L, X);
+	return {L, true};
       } else {
-        if (is_red (R)) {
-	  /* R is red */
-          set_black (R);
-          /* set_red (X); */
-          return {X, true};
-        } else {
-	  /* R is black */
-          ptr_type LR = L.data_unsafe ()->right;
-          if (is_black (LR)) {
-	    /* LR is black */
-            set_left (X, LR);
-            /* set_red (X); */
-            /* set_black (L); */
-            set_right_no_check (L, X);
-            return {L, true};
-          } else {
-	    /* LR is red */
-            ptr_type LRL = LR.data_unsafe ()->left;
-            ptr_type LRR = LR.data_unsafe ()->right;
-            set_right (L, LRL);
-            set_left (X, LRR);
-            /* set_black (L); */
-            /* set_black (X); */
-            set_left_no_check_no_flag (LR, L);
-            set_right_no_check (LR, X);
-            /* set_red (LR); */
-            return {LR, true};
-          }
-        }
+	/* LR is red */
+	ptr_type LRL = LR.data_unsafe ()->left;
+	ptr_type LRR = LR.data_unsafe ()->right;
+	set_right (L, LRL);
+	set_left (X, LRR);
+	/* set_black (L); */
+	set_black (X);
+	set_left_no_check_no_flag (LR, L);
+	set_right_no_check (LR, X);
+	/* set_red (LR); */
+	return {LR, true};
       }
     }
   }
@@ -954,7 +897,16 @@ private:
         set_root_no_check (res.first);
 	return;
       }
-      /* If neither color nor black-height of X changed after rebalancing, exit early */
+      /* If neither color nor black-height of the subtree changed after rebalancing, exit early.
+	 We could, in theory, also exit early when res.second && ! is_red_no_check (res.first).
+	 If the black-height of the subtree did not change, and the root changed from red to black,
+	 then we cannot introduce any new conflict, so the rest of the tree do not need to be rebalanced.
+	 However, we consider this additional check unnecessary.
+	 If we do not return here, but would return according to the new check,
+	 this means the root of the subtree changed from red to black.
+	 This also means the parent of curr must be black, otherwise we already had a double-red conflict.
+	 Then we are guaranteed to exit the loop in the next iteration.
+       */
       if (res.second && was_red == is_red_no_check (res.first)) return;
       curr = parent;
       is_left = was_left;
@@ -974,8 +926,8 @@ private:
     ptr_type new_sub_root;
     bool final_b;
 
-    if (! right_of_X) {
-      new_sub_root = left_of_X;
+    if (! left_of_X || ! right_of_X) {
+      if (! left_of_X) new_sub_root = right_of_X; else new_sub_root = left_of_X;
       final_b = was_X_red;
       if (parent_of_X) {
 	if (was_X_left) set_left (parent_of_X, new_sub_root);
@@ -984,12 +936,13 @@ private:
 	set_root (new_sub_root);
 	return;
       }
+      if (was_X_red) return;
     } else {
       ptr_type R = right_of_X;
       if (! R.data_unsafe ()->left) {
 	/* R will be the node that replaces X */
         bool b = is_red_no_check (R);
-        set_left_no_flag (R, left_of_X);
+        set_left_no_check_no_flag (R, left_of_X);
         set_color (R, was_X_red);
         auto res = do_rb_delete_rebalance_right (R, b);
         new_sub_root = res.first;
@@ -1011,18 +964,19 @@ private:
         ptr_type Y = curr; /* Y will be the node that replaces X */
         bool b = is_red_no_check (Y);
         set_left (curr_p, Y.data_unsafe ()->right);
-        set_left_no_flag (Y, left_of_X);
+        set_left_no_check_no_flag (Y, left_of_X);
 	set_color (Y, was_X_red);
 
         ptr_type p = curr_p;
         while (true) {
-          bool is_at_R = same_ptr (p, R);
+          bool is_at_R = p == R;
 	  bool was_red = is_red_no_check (p);
-          ptr_type parent_of_p = p.data_unsafe ()->parent;
           auto res = do_rb_delete_rebalance_left (p, b);
+	  bool can_exit = res.second && was_red == is_red_no_check (res.first);
           if (!is_at_R) {
+	    ptr_type parent_of_p = p.data_unsafe ()->parent;
             set_left_no_check (parent_of_p, res.first);
-	    if (res.second && was_red == is_red_no_check (res.first)) {
+	    if (can_exit) {
 	      set_right_no_check_no_flag (Y, R);
 	      if (parent_of_X) {
 		if (was_X_left) set_left_no_check (parent_of_X, Y);
@@ -1036,7 +990,7 @@ private:
             b = res.second;
           } else {
 	    set_right_no_check (Y, res.first);
-	    if (res.second && was_red == is_red_no_check (res.first)) {
+	    if (can_exit) {
 	      if (parent_of_X) {
 		if (was_X_left) set_left_no_check (parent_of_X, Y);
 		else set_right_no_check (parent_of_X, Y);
@@ -1108,7 +1062,7 @@ private:
       } else {
 	minilib::destroy_at < T > (curr.data_unsafe ()->storage.data ());
       }
-      if (same_ptr (curr, sub)) {
+      if (curr == sub) {
         minilib::destroy_at < node_type > (curr.data_unsafe ());
         ptr_type::deallocate (curr);
         break;
@@ -1125,17 +1079,15 @@ private:
     }
   }
 
+  /* The caller should check other.root is not nullptr */
   constexpr void copy_tree_from (const rbtree& other) requires (minilib::is_copy_constructible_v < T >) {
+    auto runtime = get_runtime ();
     auto other_runtime = other.get_runtime ();
-    if (!other_runtime->root) {
-      set_root (ptr_type ());
-      return;
-    }
+
     ptr_type src_root = other_runtime->root;
-    ptr_type dst_root = allocate_node ();
-    dst_root.data_unsafe ()->flags = src_root.data_unsafe ()->flags;
+    ptr_type dst_root = allocate_node (src_root.data_unsafe ()->flags);
     minilib::construct_at < T > (dst_root.data_unsafe ()->storage.data (), *(src_root.data_unsafe ()->storage.data ()));
-    set_root (dst_root);
+    runtime->root = dst_root;
 
     ptr_type src = src_root;
     ptr_type dst = dst_root;
@@ -1143,8 +1095,7 @@ private:
     while (true) {
       ptr_type l = src.data_unsafe ()->left;
       if (l) {
-        ptr_type new_dst = allocate_node ();
-        new_dst.data_unsafe ()->flags = l.data_unsafe ()->flags;
+        ptr_type new_dst = allocate_node (l.data_unsafe ()->flags);
         minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(l.data_unsafe ()->storage.data ()));
         set_left_no_check_no_flag (dst, new_dst);
         src = l;
@@ -1153,8 +1104,7 @@ private:
       }
       ptr_type r = src.data_unsafe ()->right;
       if (r) {
-        ptr_type new_dst = allocate_node ();
-        new_dst.data_unsafe ()->flags = r.data_unsafe ()->flags;
+        ptr_type new_dst = allocate_node (r.data_unsafe ()->flags);
         minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(r.data_unsafe ()->storage.data ()));
         set_right_no_check_no_flag (dst, new_dst);
         src = r;
@@ -1169,8 +1119,7 @@ private:
         ptr_type p_src = child_src.data_unsafe ()->parent;
         ptr_type p_dst = child_dst.data_unsafe ()->parent;
         if (((child_src.data_unsafe ()->flags & RB_IS_LEFT_CHILD) != 0) && static_cast < bool > (p_src.data_unsafe ()->right)) {
-          ptr_type new_dst = allocate_node ();
-          new_dst.data_unsafe ()->flags = p_src.data_unsafe ()->right.data_unsafe ()->flags;
+          ptr_type new_dst = allocate_node (p_src.data_unsafe ()->right.data_unsafe ()->flags);
           minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(p_src.data_unsafe ()->right.data_unsafe ()->storage.data ()));
           set_right_no_check_no_flag (p_dst, new_dst);
           src = p_src.data_unsafe ()->right;
@@ -1190,8 +1139,8 @@ private:
   constexpr ptr_type emplace_root_raw () {
     auto runtime = get_runtime ();
     if (runtime->root) std::terminate ();
-    auto p = allocate_node ();
-    set_root (p);
+    auto p = allocate_node (0);
+    runtime->root = p;
     return p;
   }
 
@@ -1200,10 +1149,10 @@ private:
     if (! h.check (runtime->container_id)) std::terminate ();
     ptr_type X = ptr_type::from_counted_ref (h);
     if (X.data_unsafe ()->left) std::terminate ();
-    auto L = allocate_node ();
-    set_left_no_check (X, L);
-    set_red (L);
-    insert_rebalance (X, true);
+    auto L = allocate_node (RB_IS_RED | RB_IS_LEFT_CHILD);
+    X.data_unsafe ()->left = L;
+    L.data_unsafe ()->parent = X;
+    if (is_red_no_check (X)) insert_rebalance (X, true);
     return L;
   }
 
@@ -1212,10 +1161,10 @@ private:
     if (! h.check (runtime->container_id)) std::terminate ();
     ptr_type X = ptr_type::from_counted_ref (h);
     if (X.data_unsafe ()->right) std::terminate ();
-    auto R = allocate_node ();
-    set_right_no_check (X, R);
-    set_red (R);
-    insert_rebalance (X, false);
+    auto R = allocate_node (RB_IS_RED);
+    X.data_unsafe ()->right = R;
+    R.data_unsafe ()->parent = X;
+    if (is_red_no_check (X)) insert_rebalance (X, false);
     return R;
   }
 
@@ -1263,7 +1212,7 @@ public:
       runtime_.root = nullptr;
       runtime_.container_id = get_tls_counter ();
     }
-    copy_tree_from (other);
+    if (other.get_runtime ()->root) copy_tree_from (other);
   }
 
   constexpr rbtree (rbtree&& other) {
@@ -1383,23 +1332,14 @@ public:
       if (l) {
 	if (leaf) {
 	  ptr_type p = leaf.data_unsafe ()->parent;
-	  if (p) {
-	    detach (leaf);
-	    assign_node_data (l, leaf);
-	    set_left_no_check_no_flag (dst, leaf);
-	    src = l;
-	    dst = leaf;
-	    leaf = find_leaf (p);
-	  } else {
-	    assign_node_data (l, leaf);
-	    set_left_no_check_no_flag (dst, leaf);
-	    src = l;
-	    dst = leaf;
-	    leaf = nullptr;
-	  }
+	  if (p) detach (leaf);
+	  assign_node_data (l, leaf);
+	  set_left_no_check_no_flag (dst, leaf);
+	  src = l;
+	  dst = leaf;
+	  if (p) leaf = find_leaf (p); else leaf = nullptr;
 	} else {
-	  ptr_type new_dst = allocate_node ();
-	  new_dst.data_unsafe ()->flags = l.data_unsafe ()->flags;
+	  ptr_type new_dst = allocate_node (l.data_unsafe ()->flags);
 	  minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(l.data_unsafe ()->storage.data ()));
 	  set_left_no_check_no_flag (dst, new_dst);
 	  src = l;
@@ -1411,23 +1351,14 @@ public:
       if (r) {
 	if (leaf) {
 	  ptr_type p = leaf.data_unsafe ()->parent;
-	  if (p) {
-	    detach (leaf);
-	    assign_node_data (r, leaf);
-	    set_right_no_check_no_flag (dst, leaf);
-	    src = r;
-	    dst = leaf;
-	    leaf = find_leaf (p);
-	  } else {
-	    assign_node_data (r, leaf);
-	    set_right_no_check_no_flag (dst, leaf);
-	    src = r;
-	    dst = leaf;
-	    leaf = nullptr;
-	  }
+	  if (p) detach (leaf);
+	  assign_node_data (r, leaf);
+	  set_right_no_check_no_flag (dst, leaf);
+	  src = r;
+	  dst = leaf;
+	  if (p) leaf = find_leaf (p); else leaf = nullptr;
 	} else {
-	  ptr_type new_dst = allocate_node ();
-	  new_dst.data_unsafe ()->flags = r.data_unsafe ()->flags;
+	  ptr_type new_dst = allocate_node (r.data_unsafe ()->flags);
 	  minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(r.data_unsafe ()->storage.data ()));
 	  set_right_no_check_no_flag (dst, new_dst);
 	  src = r;
@@ -1445,23 +1376,14 @@ public:
         if (((child_src.data_unsafe ()->flags & RB_IS_LEFT_CHILD) != 0) && static_cast < bool > (p_src.data_unsafe ()->right)) {
 	  if (leaf) {
 	    ptr_type p = leaf.data_unsafe ()->parent;
-	    if (p) {
-	      detach (leaf);
-	      assign_node_data (p_src.data_unsafe ()->right, leaf);
-	      set_right_no_check_no_flag (p_dst, leaf);
-	      src = p_src.data_unsafe ()->right;
-	      dst = leaf;
-	      leaf = find_leaf (p);
-	    } else {
-	      assign_node_data (p_src.data_unsafe ()->right, leaf);
-	      set_right_no_check_no_flag (p_dst, leaf);
-	      src = p_src.data_unsafe ()->right;
-	      dst = leaf;
-	      leaf = nullptr;
-	    }
+	    if (p) detach (leaf);
+	    assign_node_data (p_src.data_unsafe ()->right, leaf);
+	    set_right_no_check_no_flag (p_dst, leaf);
+	    src = p_src.data_unsafe ()->right;
+	    dst = leaf;
+	    if (p) leaf = find_leaf (p); else leaf = nullptr;
 	  } else {
-	    ptr_type new_dst = allocate_node ();
-	    new_dst.data_unsafe ()->flags = p_src.data_unsafe ()->right.data_unsafe ()->flags;
+	    ptr_type new_dst = allocate_node (p_src.data_unsafe ()->right.data_unsafe ()->flags);
 	    minilib::construct_at < T > (new_dst.data_unsafe ()->storage.data (), *(p_src.data_unsafe ()->right.data_unsafe ()->storage.data ()));
 	    set_right_no_check_no_flag (p_dst, new_dst);
 	    src = p_src.data_unsafe ()->right;

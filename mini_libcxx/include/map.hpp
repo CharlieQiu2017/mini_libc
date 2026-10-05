@@ -111,10 +111,6 @@ private:
   tree_type tree_;
   size_t size_;
 
-  static constexpr bool same_handle (const handle_type& a, const handle_type& b) {
-    return minilib::compare_three_way::operator () (a, b) == 0;
-  }
-
 public:
   constexpr map () : tree_ (), size_ (0) {}
 
@@ -248,7 +244,7 @@ public:
     }
     auto curr = h;
     auto p = tree_.parent_unsafe (curr);
-    while (p.is_not_null () && same_handle (tree_.right_unsafe (p), curr)) {
+    while (p.is_not_null () && curr == tree_.right_unsafe (p)) {
       curr = p;
       p = tree_.parent_unsafe (p);
     }
@@ -270,7 +266,7 @@ public:
     }
     auto curr = h;
     auto p = tree_.parent_unsafe (curr);
-    while (p.is_not_null () && same_handle (tree_.left_unsafe (p), curr)) {
+    while (p.is_not_null () && curr == tree_.left_unsafe (p)) {
       curr = p;
       p = tree_.parent_unsafe (p);
     }

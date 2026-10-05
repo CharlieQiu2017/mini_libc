@@ -329,6 +329,14 @@ public:
     }
   }
 
+  constexpr bool operator== (const counted_ref& other) const {
+    if consteval {
+      return ptr_constexpr == other.ptr_constexpr;
+    } else {
+      return ptr_real == other.ptr_real;
+    }
+  }
+
   /* In theory, we could do an ID check here, but we choose not to for performance.
      For example, in an RB-tree lookup, the container only has to check the ID once, not at every comparison.
    */
@@ -563,6 +571,14 @@ public:
       return ! (ptr_constexpr == nullptr);
     } else {
       return ! (ptr_real == 0);
+    }
+  }
+
+  constexpr bool operator== (const linked_ref& other) const {
+    if consteval {
+      return ptr_constexpr == other.ptr_constexpr;
+    } else {
+      return ptr_real == other.ptr_real;
     }
   }
 
@@ -959,6 +975,14 @@ public:
       result.ptr_real = ref.ptr_real;
     }
     return result;
+  }
+
+  constexpr bool operator== (const tagged_ptr& other) const {
+    if consteval {
+      return ptr_constexpr == other.ptr_constexpr;
+    } else {
+      return ptr_real == other.ptr_real;
+    }
   }
 
   friend constexpr minilib::order_result compare_three_way (const tagged_ptr& a, const tagged_ptr& b) {
