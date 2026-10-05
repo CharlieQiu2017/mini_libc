@@ -70,7 +70,24 @@ public:
       /* aligned_alloc() and free() will be supplied by a custom bare-metal library.
 	 This implementation does not care about whether size is a multiple of alignment.
        */
-      return static_cast < T * > (aligned_alloc (alignof (T), sizeof (T) * n));
+      T * p = static_cast < T * > (aligned_alloc (alignof (T), sizeof (T) * n));
+      /* The source code of start_lifetime_as_array() can be found in include/c++/16.2.0/stl_construct.h.
+	 It's basically an old-school pointer launder.
+	 We expect the following line will simply be optimized to return p.
+       */
+      if (p) {
+	T * ret = std::start_lifetime_as_array < T > (p, n);
+	/* Normally, the caller should immediately test whether the return value is nullptr.
+	   Without the following line, GCC will actually emit the call twice.
+	   First, if p is nullptr, we jump to the else branch, which causes the caller to panic.
+	   Then, if p is not nullptr, GCC fails to recognize that ret also cannot be nullptr.
+	   Thus it checks for nullptr again. The following line avoids this double checking.
+	 */
+	if (! ret) __builtin_unreachable ();
+	return ret;
+      } else {
+	return nullptr;
+      }
     }
   }
 
