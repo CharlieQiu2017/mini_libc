@@ -897,17 +897,8 @@ private:
         set_root_no_check (res.first);
 	return;
       }
-      /* If neither color nor black-height of the subtree changed after rebalancing, exit early.
-	 We could, in theory, also exit early when res.second && ! is_red_no_check (res.first).
-	 If the black-height of the subtree did not change, and the root changed from red to black,
-	 then we cannot introduce any new conflict, so the rest of the tree do not need to be rebalanced.
-	 However, we consider this additional check unnecessary.
-	 If we do not return here, but would return according to the new check,
-	 this means the root of the subtree changed from red to black.
-	 This also means the parent of curr must be black, otherwise we already had a double-red conflict.
-	 Then we are guaranteed to exit the loop in the next iteration.
-       */
-      if (res.second && was_red == is_red_no_check (res.first)) return;
+      /* Exit early if the rebalance cannot introduce new violations */
+      if (res.second && (was_red || ! is_red_no_check (res.first))) return;
       curr = parent;
       is_left = was_left;
       is_bh_equal = res.second;
@@ -954,7 +945,7 @@ private:
           set_root_no_check (new_sub_root);
 	  return;
         }
-	if (res.second && was_X_red == is_red_no_check (res.first)) return;
+	if (res.second && (was_X_red || ! is_red_no_check (res.first))) return;
       } else {
         ptr_type curr_p = R, curr = R.data_unsafe ()->left;
         while (curr.data_unsafe ()->left) {
@@ -972,7 +963,7 @@ private:
           bool is_at_R = p == R;
 	  bool was_red = is_red_no_check (p);
           auto res = do_rb_delete_rebalance_left (p, b);
-	  bool can_exit = res.second && was_red == is_red_no_check (res.first);
+	  bool can_exit = res.second && (was_red || ! is_red_no_check (res.first));
           if (!is_at_R) {
 	    ptr_type parent_of_p = p.data_unsafe ()->parent;
             set_left_no_check (parent_of_p, res.first);
@@ -1014,7 +1005,7 @@ private:
           set_root_no_check (new_sub_root);
 	  return;
         }
-	if (res.second && was_X_red == is_red_no_check (res.first)) return;
+	if (res.second && (was_X_red || ! is_red_no_check (res.first))) return;
       }
     }
 
@@ -1039,7 +1030,7 @@ private:
         set_root_no_check (res.first);
 	return;
       }
-      if (res.second && was_red == is_red_no_check (res.first)) return;
+      if (res.second && (was_red || ! is_red_no_check (res.first))) return;
       curr = parent;
       is_left = was_left;
       is_bh_equal = res.second;
