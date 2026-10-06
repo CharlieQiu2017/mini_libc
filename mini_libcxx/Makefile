@@ -73,7 +73,7 @@ TEST_OBJ_DIRS = $(sort $(patsubst %/,%,$(dir $(TEST_OBJS))))
 all: libcxx.a $(TEST_BINS)
 
 archive:
-	tar -C .. -czf ../libcxx.tar.gz das
+	tar -C .. -czf ../mini_libcxx.tar.gz mini_libcxx
 
 $(OBJS) : | $(OBJ_DIRS)
 
