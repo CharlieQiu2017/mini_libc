@@ -969,15 +969,25 @@ public:
 
   constexpr void erase (size_t index) requires (minilib::is_destructible_v < T > && (minilib::is_move_assignable_v < T > || minilib::is_move_constructible_v < T >)) { erase (index, 1); }
 
+  constexpr bool operator== (const vector& other)
+  requires (minilib::equality_comparable < T >)
+  {
+    if (len != other.len) return false;
+    for (size_t i = 0; i < len; i++) {
+      if ((static_cast < const T& > (ptr[i]) == static_cast < const T& > (other.ptr[i])) == false) return false;
+    }
+    return true;
+  }
+
   /* Lexicographic ordering */
   friend constexpr minilib::order_result compare_three_way (const vector& a, const vector& b)
-  requires (requires (const T& x, const T& y) { minilib::compare_three_way::operator() (x, y); })
+  requires (minilib::three_way_comparable < T >)
   {
     size_t len_a = a.size (), len_b = b.size ();
     size_t i = 0;
 
     while (i < len_a && i < len_b) {
-      minilib::order_result cmp = minilib::compare_three_way::operator() (a[i], b[i]);
+      minilib::order_result cmp = minilib::compare_three_way::operator() (static_cast < const T& > (a[i]), static_cast < const T& > (b[i]));
       if (cmp < 0) return minilib::order_result::less ();
       else if (cmp > 0) return minilib::order_result::greater ();
       i++;

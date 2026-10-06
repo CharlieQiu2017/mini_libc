@@ -162,15 +162,25 @@ public:
 
   constexpr const T * data () const { return ptr; }
 
+  constexpr bool operator== (const indirect& other) const
+  requires (minilib::equality_comparable < T >)
+  {
+    if (ptr == nullptr) {
+      return other.ptr == nullptr;
+    } else {
+      return static_cast < const T& > (*ptr) == static_cast < const T& > (*(other.ptr));
+    }
+  }
+
   friend constexpr minilib::order_result compare_three_way (const indirect& a, const indirect& b)
-  requires (requires (const T& x, const T& y) { minilib::compare_three_way::operator() (x, y); })
+  requires (minilib::three_way_comparable < T >)
   {
     if (! static_cast < bool > (a)) {
       if (! static_cast < bool > (b)) return minilib::order_result::equal ();
       else return minilib::order_result::less ();
     } else {
       if (! static_cast < bool > (b)) return minilib::order_result::greater ();
-      else return minilib::compare_three_way::operator() (*a, *b);
+      else return minilib::compare_three_way::operator() (static_cast < const T& > (*a), static_cast < const T& > (*b));
     }
   }
 };
@@ -355,9 +365,19 @@ public:
 
   constexpr explicit operator bool () const { return len != 0; }
 
+  constexpr bool operator== (const indirect_array& other) const
+  requires (minilib::equality_comparable < T >)
+  {
+    if (len != other.len) return false;
+    for (size_t i = 0; i < len; i++) {
+      if ((static_cast < const T& > (ptr[i]) == static_cast < const T& > (other.ptr[i])) == false) return false;
+    }
+    return true;
+  }
+
   /* Lexicographic ordering, see vector.hpp */
   friend constexpr minilib::order_result compare_three_way (const indirect_array& a, const indirect_array& b)
-  requires (requires (const T& x, const T& y) { minilib::compare_three_way::operator() (x, y); })
+  requires (minilib::three_way_comparable < T >)
   {
     size_t len_a = a.size (), len_b = b.size ();
     size_t i = 0;

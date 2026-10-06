@@ -108,6 +108,12 @@ concept three_way_comparable_with = requires (const T& a, const U& b) {
   minilib::compare_three_way::operator () (a, b);
 };
 
+template < typename T >
+concept equality_comparable = requires (const T& a, const T& b) {
+  a == b;
+  requires minilib::returnable_to < decltype (a == b), bool >;
+};
+
 }
 
 #endif
