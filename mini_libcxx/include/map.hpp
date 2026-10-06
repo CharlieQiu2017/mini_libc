@@ -70,10 +70,6 @@ public:
   }
 
   constexpr ~map_pair () = default;
-
-  friend constexpr minilib::order_result compare_three_way (const map_pair& a, const map_pair& b) {
-    return minilib::compare_three_way::operator() (*(a.storage.first.data ()), *(b.storage.first.data ()));
-  }
 };
 
 template < typename Key, typename Value >
@@ -279,7 +275,7 @@ public:
   constexpr handle_type search (const K& k) const {
     auto curr = tree_.root ();
     while (curr.is_not_null ()) {
-      auto res = minilib::compare_three_way::operator () (k, tree_.data_unsafe (curr)->key ());
+      auto res = minilib::compare_three_way::operator () (k, static_cast < const Key& > (tree_.data_unsafe (curr)->key ()));
       if (res == 0) return curr;
       if (res < 0) {
         curr = tree_.left_unsafe (curr);
@@ -317,18 +313,18 @@ public:
 
   /* DANGEROUS: This function is deliberately left public to allow cases where the caller manually manages the lifetime of Value. */
   template < typename K >
-  requires (minilib::three_way_comparable_with < K&&, const Key& > && minilib::is_constructible_v < Key, K&& >)
+  requires (minilib::three_way_comparable_with < const K&, const Key& > && minilib::is_constructible_v < Key, K&& >)
   constexpr minilib::pair < bool, handle_type > emplace_null (K&& k) {
     if (empty ()) {
       handle_type h = tree_.emplace_root ();
       auto p = tree_.data (h);
-      minilib::construct_at < Key > (p->key_ptr (), minilib::forward < K&& > (k));
+      minilib::construct_at < Key > (p->key_ptr (), minilib::forward < K > (k));
       size_ = 1;
       return minilib::pair < bool, handle_type > (true, h);
     }
     auto curr = tree_.root ();
     while (true) {
-      auto res = minilib::compare_three_way::operator () (minilib::forward < K&& > (k), minilib::forward < const Key& > (tree_.data (curr)->key ()));
+      auto res = minilib::compare_three_way::operator () (static_cast < const K& > (k), static_cast < const Key& > (tree_.data (curr)->key ()));
       if (res == 0) {
         return minilib::pair < bool, handle_type > (false, curr);
       }
@@ -339,7 +335,7 @@ public:
         } else {
           handle_type h = tree_.emplace_left (curr);
 	  auto p = tree_.data (h);
-	  minilib::construct_at < Key > (p->key_ptr (), minilib::forward < K&& > (k));
+	  minilib::construct_at < Key > (p->key_ptr (), minilib::forward < K > (k));
           ++size_;
           return minilib::pair < bool, handle_type > (true, h);
         }
@@ -350,7 +346,7 @@ public:
         } else {
           handle_type h = tree_.emplace_right (curr);
 	  auto p = tree_.data (h);
-	  minilib::construct_at < Key > (p->key_ptr (), minilib::forward < K&& > (k));
+	  minilib::construct_at < Key > (p->key_ptr (), minilib::forward < K > (k));
           ++size_;
           return minilib::pair < bool, handle_type > (true, h);
         }
@@ -361,17 +357,17 @@ public:
   template < typename K, typename... Args >
   requires (minilib::three_way_comparable_with < K&&, const Key& > && minilib::is_constructible_v < Key, K&& > && minilib::is_constructible_v < Value, Args&&... >)
   constexpr minilib::pair < bool, handle_type > emplace (K&& k, Args&&... args) {
-    auto res = emplace_null (minilib::forward < K&& > (k));
+    auto res = emplace_null (minilib::forward < K > (k));
     if (! res.first) return res;
     auto p = tree_.data_unsafe (res.second);
-    minilib::construct_at < Value > (p->value_ptr (), minilib::forward < Args&& > (args)...);
+    minilib::construct_at < Value > (p->value_ptr (), minilib::forward < Args > (args)...);
     return res;
   }
 
   template < typename K >
   requires (minilib::three_way_comparable_with < K&&, const Key& > && minilib::is_constructible_v < Key, K&& > && minilib::is_truly_default_constructible_v < Value >)
   constexpr minilib::pair < bool, handle_type > insert_default (K&& k) {
-    auto res = emplace_null (minilib::forward < K&& > (k));
+    auto res = emplace_null (minilib::forward < K > (k));
     if (! res.first) return res;
     auto p = tree_.data_unsafe (res.second);
     minilib::default_construct_at < Value > (p->value_ptr ());
