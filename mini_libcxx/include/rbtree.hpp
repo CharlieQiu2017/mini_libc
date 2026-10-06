@@ -924,8 +924,7 @@ private:
     bool final_b;
 
     if (! left_of_X || ! right_of_X) {
-      if (! left_of_X) new_sub_root = right_of_X; else new_sub_root = left_of_X;
-      final_b = was_X_red;
+      new_sub_root = left_of_X ? left_of_X : right_of_X;
       if (parent_of_X) {
 	if (was_X_left) set_left (parent_of_X, new_sub_root);
 	else set_right (parent_of_X, new_sub_root);
@@ -934,6 +933,7 @@ private:
 	return;
       }
       if (was_X_red) return;
+      final_b = false;
     } else {
       ptr_type R = right_of_X;
       if (! R.data_unsafe ()->left) {
@@ -1650,5 +1650,8 @@ public:
 };
 
 }
+
+#undef RB_IS_LEFT_CHILD
+#undef RB_IS_RED
 
 #endif
