@@ -33,13 +33,13 @@ else
   endif # ifeq($(debug),1)
 endif # ifeq ($(optimize),1)
 
+LIBGCC = /opt/aarch64-none-elf/lib/gcc/aarch64-none-elf/16.2.0/libgcc.a
+
 ifeq ($(pie),1)
   LDFLAGS += -shared -Bsymbolic -T default_pic.lds
 else
   LDFLAGS += -static -T default.lds
 endif
-
-LIBGCC = /opt/aarch64-none-elf/lib/gcc/aarch64-none-elf/16.2.0/libgcc.a
 
 INCFLAGS = -I ./include
 EXTFLAGS = 
@@ -58,7 +58,6 @@ LIBC_SRCS = $(shell find src -regex '.*\.c')
 
 # Object files
 LIBC_OBJS = $(patsubst src/%.c,obj/%.o,$(LIBC_SRCS)) $(patsubst tmp/%.c,obj/%.o,$(LIBC_J2_TMPL_SRCS))
-LIBC_LOBJS = $(patsubst src/%.c,obj/%.lo,$(LIBC_SRCS)) $(patsubst tmp/%.c,obj/%.lo,$(LIBC_J2_TMPL_SRCS))
 LIBC_OBJ_DIRS = $(sort $(patsubst %/,%,$(dir $(LIBC_OBJS))))
 
 # Unit tests
@@ -72,7 +71,7 @@ all: crt.o libc.a $(LIBC_TEST_BINS)
 archive:
 	tar -C .. -czf ../mini_libc.tar.gz mini_libc
 
-$(LIBC_OBJS) $(LIBC_LOBJS) : | $(LIBC_OBJ_DIRS)
+$(LIBC_OBJS) : | $(LIBC_OBJ_DIRS)
 
 $(LIBC_J2_TMPL_SRCS) : | $(LIBC_J2_TMPL_DIRS)
 
@@ -103,6 +102,6 @@ test-bin/% : test-bin/%.o libc.a
 	$(LD) $(LDFLAGS) -o $@ crt.o $^ $(LIBGCC)
 
 clean :
-	$(RM) -r obj test-bin tmp crt.o libc.a
+	$(RM) -rf obj test-bin tmp crt.o libc.a
 
 .PHONY : all clean archive

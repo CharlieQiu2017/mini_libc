@@ -1,7 +1,9 @@
 CC = /opt/aarch64-none-elf/bin/aarch64-none-elf-gcc
 CXX = /opt/aarch64-none-elf/bin/aarch64-none-elf-g++
 AS = /opt/aarch64-none-elf/bin/aarch64-none-elf-as
+AR = /opt/aarch64-none-elf/bin/aarch64-none-elf-ar
 LD = /opt/aarch64-none-elf/bin/aarch64-none-elf-ld
+JINJA = jinja2
 STDFLAGS = -std=c11
 CXXSTDFLAGS = -std=c++26
 FREEFLAGS = -nostdlib -ffreestanding
@@ -43,14 +45,14 @@ CFLAGS = $(STDFLAGS) $(FREEFLAGS) $(WARNFLAGS) $(ARCHFLAGS) $(PROTFLAGS) $(PIEFL
 CXXFLAGS = $(CXXSTDFLAGS) $(CXXFREEFLAGS) $(WARNFLAGS) $(ARCHFLAGS) $(PROTFLAGS) $(PIEFLAGS) $(GCFLAGS) $(OPTFLAGS) $(INCFLAGS) $(EXTFLAGS)
 
 # Template sources
-# These files must be first processed by M4
-C_TMPLS = $(shell find src -regex '.*\.c.m4')
-C_TMPL_SRCS = $(patsubst src/%.c.m4,tmp/%.c,$(C_TMPLS))
-C_TMPL_DIRS = $(sort $(patsubst %/,%,$(dir $(C_TMPL_SRCS))))
+# These files must be first processed by Jinja2
+C_J2_TMPLS = $(shell find src -regex '.*\.c.j2')
+C_J2_TMPL_SRCS = $(patsubst src/%.j2,tmp/%,$(C_J2_TMPLS))
+C_J2_TMPL_DIRS = $(sort $(patsubst %/,%,$(dir $(C_J2_TMPL_SRCS))))
 
-CXX_TMPLS = $(shell find src -regex '.*\.cpp.m4')
-CXX_TMPL_SRCS = $(patsubst src/%.cpp.m4,tmp/%.cpp,$(CXX_TMPLS))
-CXX_TMPL_DIRS = $(sort $(patsubst %/,%,$(dir $(CXX_TMPL_SRCS))))
+CXX_J2_TMPLS = $(shell find src -regex '.*\.cpp.j2')
+CXX_J2_TMPL_SRCS = $(patsubst src/%.j2,tmp/%,$(CXX_J2_TMPLS))
+CXX_J2_TMPL_DIRS = $(sort $(patsubst %/,%,$(dir $(CXX_J2_TMPL_SRCS))))
 
 # Raw sources
 # These files can be compiled directly
@@ -58,8 +60,7 @@ C_SRCS = $(shell find src -regex '.*\.c')
 CXX_SRCS = $(shell find src -regex '.*\.cpp')
 
 # Object files
-OBJS = $(patsubst src/%.c,obj/%.o,$(C_SRCS)) $(patsubst tmp/%.c,obj/%.o,$(C_TMPL_SRCS)) $(patsubst src/%.cpp,obj/%.o,$(CXX_SRCS)) $(patsubst tmp/%.cpp,obj/%.o,$(CXX_TMPL_SRCS))
-LOBJS = $(patsubst src/%.c,obj/%.lo,$(C_SRCS)) $(patsubst tmp/%.c,obj/%.lo,$(C_TMPL_SRCS)) $(patsubst src/%.cpp,obj/%.lo,$(CXX_SRCS)) $(patsubst tmp/%.cpp,obj/%.lo,$(CXX_TMPL_SRCS))
+OBJS = $(patsubst src/%.c,obj/%.o,$(C_SRCS)) $(patsubst tmp/%.c,obj/%.o,$(C_J2_TMPL_SRCS)) $(patsubst src/%.cpp,obj/%.o,$(CXX_SRCS)) $(patsubst tmp/%.cpp,obj/%.o,$(CXX_J2_TMPL_SRCS))
 OBJ_DIRS = $(sort $(patsubst %/,%,$(dir $(OBJS))))
 
 # Unit tests
@@ -74,13 +75,13 @@ all: libcxx.a $(TEST_BINS)
 archive:
 	tar -C .. -czf ../libcxx.tar.gz das
 
-$(OBJS) $(LOBJS) : | $(OBJ_DIRS)
+$(OBJS) : | $(OBJ_DIRS)
 
-$(TMPL_SRCS) : | $(TMPL_DIRS)
+$(C_J2_TMPL_SRCS) $(CXX_J2_TMPL_SRCS) : | $(C_J2_TMPL_DIRS) $(CXX_J2_TMPL_DIS)
 
 $(TEST_OBJS) $(TEST_BINS) : | $(TEST_OBJ_DIRS)
 
-$(OBJ_DIRS) $(TMPL_DIRS) $(TEST_OBJ_DIRS) :
+$(OBJ_DIRS) $(C_J2_TMPL_DIRS) $(CXX_J2_TMPL_DIRS) $(TEST_OBJ_DIRS) :
 	mkdir -p $@
 
 obj/%.o : src/%.c
@@ -89,8 +90,11 @@ obj/%.o : src/%.c
 obj/%.o : src/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-tmp/%.c : src/%.m4
-	$(M4) $< > $@
+tmp/%.c : src/%.c.j2 src/%.c.json
+	$(JINJA) $^ > $@
+
+tmp/%.cpp : src/%.cpp.j2 src/%.cpp.json
+	$(JINJA) $^ > $@
 
 obj/%.o : tmp/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
