@@ -351,7 +351,7 @@ static void test_copy_ctor () {
   TEST_CHECK (*(tree2.data (r2)) == *(tree1.data (r1)));
   TEST_CHECK (*(tree2.data (tree2.left (r2))) == *(tree1.data (tree1.left (r1))));
   TEST_CHECK (*(tree2.data (tree2.right (r2))) == *(tree1.data (tree1.right (r1))));
-  TEST_CHECK (*(tree2.data (tree2.right (tree2.right (r2)))) == *(tree1.data (tree1.right (tree1.right (r1)))));
+  TEST_CHECK (*(tree2.data (tree2.left (tree2.left (r2)))) == *(tree1.data (tree1.left (tree1.left (r1)))));
 
   // Modifying tree2 does not affect tree1
   *(tree2.data (r2)) = 999;

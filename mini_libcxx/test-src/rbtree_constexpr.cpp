@@ -312,7 +312,7 @@ constexpr bool test_copy_ctor (minilib::counter & ctr) {
   ASSERT_TRUE (*(tree2.data (r2)) == *(tree1.data (r1)));
   ASSERT_TRUE (*(tree2.data (tree2.left (r2))) == *(tree1.data (tree1.left (r1))));
   ASSERT_TRUE (*(tree2.data (tree2.right (r2))) == *(tree1.data (tree1.right (r1))));
-  ASSERT_TRUE (*(tree2.data (tree2.right (tree2.right (r2)))) == *(tree1.data (tree1.right (tree1.right (r1)))));
+  ASSERT_TRUE (*(tree2.data (tree2.left (tree2.left (r2)))) == *(tree1.data (tree1.left (tree1.left (r1)))));
 
   *(tree2.data (r2)) = 999;
   ASSERT_TRUE (*(tree1.data (tree1.root ())) != 999);
