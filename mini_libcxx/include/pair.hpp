@@ -2,11 +2,13 @@
 #define PAIR_HPP
 
 #include <stdint.h>
-#include <utility>
+#include <crypto/sk/aes/aes.h>
+#include <utility.hpp>
 #include <forward.hpp>
 #include <utility.hpp>
 #include <type_traits.hpp>
 #include <compare.hpp>
+#include <hash.hpp>
 
 namespace minilib {
 
@@ -50,6 +52,15 @@ struct pair {
     auto res = minilib::compare_three_way::operator () (a.first, b.first);
     if (res != 0) return res;
     return minilib::compare_three_way::operator () (a.second, b.second);
+  }
+
+  friend constexpr uint64_t hash ([[maybe_unused]] const unsigned char * key, const pair& p) requires (std::is_same_v < T1, uint64_t > && std::is_same_v < T2, uint64_t >) {
+    if consteval {
+      /* Dummy hash for testing purpose */
+      return p.first ^ p.second;
+    } else {
+      return aes128_hash_16 (key, reinterpret_cast < const unsigned char * > (&p));
+    }
   }
 };
 
