@@ -951,149 +951,102 @@ private:
     minilib::destroy_at < node_type > (X.data_unsafe ());
     ptr_type::deallocate (X);
 
-    ptr_type new_sub_root;
+    /* Suppose p is the root of the subtree that was just modified, then we need to call rebalance() on its parent which is p_parent. */
+    ptr_type p_parent;
+    bool p_is_left;
 
     if (! left_of_X || ! right_of_X) {
-      new_sub_root = left_of_X ? left_of_X : right_of_X;
+      ptr_type p = left_of_X ? left_of_X : right_of_X;
+      /* p will be the node that replaces X */
       if (parent_of_X) {
-	if (was_X_left) set_left (parent_of_X, new_sub_root);
-	else set_right (parent_of_X, new_sub_root);
+	if (was_X_left) set_left (parent_of_X, p);
+	else set_right (parent_of_X, p);
       } else {
-	set_root (new_sub_root);
+	set_root (p);
 	return;
       }
       if (was_X_red) return;
-      if (is_red (new_sub_root)) {
-	set_black (new_sub_root);
+      if (is_red (p)) {
+	set_black (p);
 	return;
       }
+      p_parent = parent_of_X;
+      p_is_left = was_X_left;
     } else {
       ptr_type R = right_of_X;
       if (! R.data_unsafe ()->left) {
 	/* R will be the node that replaces X */
+	ptr_type R_right = R.data_unsafe ()->right;
         bool b = is_red_no_check (R);
         set_left_no_check_no_flag (R, left_of_X);
         set_color (R, was_X_red);
-	minilib::pair < ptr_type, uint8_t > res = {R, 0x01};
-	if (! b && is_red (R.data_unsafe ()->right)) {
-	  set_black (R.data_unsafe ()->right);
+	if (! b && is_red (R_right)) {
+	  set_black (R_right);
 	  b = true;
 	}
-        if (! b) res = do_rb_delete_rebalance_right (R);
-        new_sub_root = res.first;
         if (parent_of_X) {
-          if (was_X_left) set_left_no_check (parent_of_X, new_sub_root);
-          else set_right_no_check (parent_of_X, new_sub_root);
+          if (was_X_left) set_left_no_check (parent_of_X, R);
+          else set_right_no_check_no_flag (parent_of_X, R);
         } else {
-          set_root_no_check (new_sub_root);
-	  return;
+          set_root_no_check (R);
         }
-	if (res.second) return;
+	if (b) return;
+	p_parent = R;
+	p_is_left = false;
       } else {
-        ptr_type curr_p = R, curr = R.data_unsafe ()->left;
+        ptr_type curr_parent = R, curr = R.data_unsafe ()->left;
         while (curr.data_unsafe ()->left) {
-	  curr_p = curr;
+	  curr_parent = curr;
           curr = curr.data_unsafe ()->left;
         }
         ptr_type Y = curr; /* Y will be the node that replaces X */
 	ptr_type Y_right = Y.data_unsafe ()->right;
         bool b = is_red_no_check (Y);
-        set_left (curr_p, Y_right);
+        set_left (curr_parent, Y_right);
         set_left_no_check_no_flag (Y, left_of_X);
 	set_color (Y, was_X_red);
-
 	if (! b && is_red (Y_right)) {
 	  set_black (Y_right);
 	  b = true;
 	}
-
-	if (b) {
-	  set_right_no_check_no_flag (Y, R);
-	  if (parent_of_X) {
-	    if (was_X_left) set_left_no_check (parent_of_X, Y);
-	    else set_right_no_check (parent_of_X, Y);
-	  } else {
-	    set_root_no_check (Y);
-	  }
-	  return;
+	set_right_no_check_no_flag (Y, R);
+	if (parent_of_X) {
+	  if (was_X_left) set_left_no_check_no_flag (parent_of_X, Y);
+	  else set_right_no_check (parent_of_X, Y);
+	} else {
+	  set_root_no_check (Y);
 	}
-
-        ptr_type p = curr_p;
-        while (true) {
-          bool is_at_R = p == R;
-	  ptr_type parent_of_p = p.data_unsafe ()->parent;
-          auto res = do_rb_delete_rebalance_left (p);
-          if (!is_at_R) {
-	    /* if res.second == 0x00, then res.first is just p itself, and there's no need to call set_left */
-	    if (res.second) {
-	      set_left_no_check (parent_of_p, res.first);
-	      set_right_no_check_no_flag (Y, R);
-	      if (parent_of_X) {
-		if (was_X_left) set_left_no_check (parent_of_X, Y);
-		else set_right_no_check (parent_of_X, Y);
-	      } else {
-		set_root_no_check (Y);
-	      }
-	      return;
-	    }
-            p = parent_of_p;
-          } else {
-	    set_right_no_check (Y, res.first);
-	    if (res.second) {
-	      if (parent_of_X) {
-		if (was_X_left) set_left_no_check (parent_of_X, Y);
-		else set_right_no_check (parent_of_X, Y);
-	      } else {
-		set_root_no_check (Y);
-	      }
-	      return;
-	    }
-            break;
-          }
-        }
-
-        auto res = do_rb_delete_rebalance_right (Y);
-        new_sub_root = res.first;
-        if (parent_of_X) {
-          if (was_X_left) set_left_no_check (parent_of_X, new_sub_root);
-          else set_right_no_check (parent_of_X, new_sub_root);
-        } else {
-          set_root_no_check (new_sub_root);
-	  return;
-        }
-	if (res.second) return;
+	if (b) return;
+	p_parent = curr_parent;
+	p_is_left = true;
       }
     }
 
-    ptr_type curr = parent_of_X; /* If we reach this point, then curr != nullptr */
-    bool is_left = was_X_left;
-
     while (true) {
-      ptr_type parent = curr.data_unsafe ()->parent;
-      bool was_left = (curr.data_unsafe ()->flags & RB_IS_LEFT_CHILD) != 0;
+      ptr_type p_grandparent = p_parent.data_unsafe ()->parent;
+      bool p_parent_was_left = (p_parent.data_unsafe ()->flags & RB_IS_LEFT_CHILD) != 0;
       minilib::pair < ptr_type, uint8_t > res;
-      if (is_left) {
-        res = do_rb_delete_rebalance_left (curr);
+      if (p_is_left) {
+        res = do_rb_delete_rebalance_left (p_parent);
       } else {
-        res = do_rb_delete_rebalance_right (curr);
+        res = do_rb_delete_rebalance_right (p_parent);
       }
       /* if res.second == 0x00, then res.first is just curr itself */
       if (res.second) {
-	if (parent) {
-	  if (was_left) set_left_no_check (parent, res.first);
-	  else set_right_no_check (parent, res.first);
+	if (p_grandparent) {
+	  if (p_parent_was_left) set_left_no_check (p_grandparent, res.first);
+	  else set_right_no_check (p_grandparent, res.first);
 	} else {
 	  set_root_no_check (res.first);
 	}
 	return;
       }
-      curr = parent;
-      is_left = was_left;
+      p_parent = p_grandparent;
+      p_is_left = p_parent_was_left;
     }
   }
 
   constexpr void clear_subtree (ptr_type sub) requires (Destructor != nullptr || minilib::is_destructible_v < T >) {
-    if (!sub) return;
     ptr_type curr = sub;
     while (true) {
       while (true) {
